@@ -5,49 +5,38 @@ from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from deep_translator import GoogleTranslator
 
+# 1. [여기에 넣으세요] 금지 단어 목록 (대소문자 구분 없이 검사하도록 소문자로 작성)
+BLACKLIST = [
+    'death', 'killed', 'murder', 'blood', 'suicide', 'accident', 
+    'war', 'terror', 'shooting', 'dead', 'violence', 'cruel',
+    'rape', 'abuse', 'victim', 'tragedy', 'fatal', 'bomb', 'attack'
+]
+
 # 1. 뉴스 데이터 수집 및 번역 (로그용 비교 데이터 생성)
 def get_processed_news():
     api_key = os.getenv('NEWS_API_KEY')
     yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-    url = f"https://newsapi.org/v2/everything?q=world&language=en&from={yesterday}&sortBy=popularity&pageSize=1&apiKey={api_key}"
+    
+    # 인기 뉴스 10개를 가져와서 필터링 시작
+    url = f"https://newsapi.org/v2/everything?q=world&language=en&from={yesterday}&sortBy=popularity&pageSize=10&apiKey={api_key}"
     
     try:
         data = requests.get(url).json()
-        if not data.get('articles'): return None
+        articles = data.get('articles', [])
         
-        article = data['articles'][0]
-        translator = GoogleTranslator(source='en', target='ko')
-        
-        # 원문과 번역본 준비
-        en_title = article['title']
-        en_desc = article['description']
-        ko_title = translator.translate(en_title)
-        ko_desc = translator.translate(en_desc)
-        
-        # 10줄 이내 가독성 요약 (인스타 업로드용)
-        summary_ko = f"📍 {ko_title}\n\n"
-        sentences = ko_desc.split('. ')
-        for s in sentences[:4]: # 핵심 문장 4개 추출
-            if len(s) > 5:
-                summary_ko += f"• {s.strip()}\n"
-        
-        # 깃허브 로그 확인용 (인스타에는 안 올라감)
-        print("\n" + "="*50)
-        print("[번역 품질 체크 로딩]")
-        print(f"원문 제목: {en_title}")
-        print(f"번역 제목: {ko_title}")
-        print(f"원문 내용: {en_desc[:100]}...")
-        print(f"번역 내용: {ko_desc[:100]}...")
-        print("="*50 + "\n")
-
-        return {
-            'ko_title': ko_title,
-            'summary_ko': summary_ko,
-            'image_url': article.get('urlToImage')
-        }
-    except Exception as e:
-        print(f"데이터 처리 오류: {e}")
-        return None
+        selected_article = None
+        for article in articles:
+            # 제목과 내용에서 금지 단어가 있는지 검사
+            content_to_check = (article['title'] + article['description']).lower()
+            if any(word in content_to_check for word in BLACKLIST):
+                print(f"⚠️ 유해 콘텐츠 감지되어 패스합니다: {article['title'][:20]}...")
+                continue
+            
+            # 모든 검사를 통과한 첫 번째 뉴스 선택
+            selected_article = article
+            break
+            
+        if not selected_article: return None
 
 # 2. 이미지 생성 (1번: 블러+제목, 2~3번: 사진만)
 def create_slides(article):

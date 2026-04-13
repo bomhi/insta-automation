@@ -1,5 +1,6 @@
 import os
 import requests
+import time  # 1. 시간 대기 기능을 위해 추가
 from PIL import Image, ImageDraw, ImageFont
 
 def create_card():
@@ -50,6 +51,12 @@ def upload_to_instagram():
     
     if 'id' in res_data:
         creation_id = res_data['id']
+        
+        # --- 핵심 수정 부분: 인스타 서버가 이미지를 처리할 시간을 줍니다 ---
+        print("인스타그램 서버가 이미지를 처리 중입니다... 10초간 대기합니다.")
+        time.sleep(10) 
+        # ---------------------------------------------------------
+        
         # B. 실제 게시물 업로드 승인
         publish_url = f"https://graph.facebook.com/v19.0/{account_id}/media_publish"
         publish_payload = {

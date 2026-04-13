@@ -81,6 +81,38 @@ def create_slides(article):
         image_paths.append(path)
     return image_paths
 
+def main():
+    # 실행 인자 확인 (--generate 인지 --upload 인지)
+    mode = sys.argv[1] if len(sys.argv) > 1 else ""
+
+    if mode == "--generate":
+        print("--- 이미지 생성 모드 시작 ---")
+        if not os.path.exists("images"): os.makedirs("images")
+        data = get_processed_news()
+        if data:
+            create_slides(data)
+            # 나중에 업로드 때 쓰기 위해 요약본을 임시 파일로 저장
+            with open("summary.txt", "w", encoding="utf-8") as f:
+                f.write(data['summary_ko'])
+        print("--- 이미지 생성 완료 ---")
+
+    elif mode == "--upload":
+        print("--- 인스타그램 업로드 모드 시작 ---")
+        # 저장된 요약본 읽기
+        if os.path.exists("summary.txt"):
+            with open("summary.txt", "r", encoding="utf-8") as f:
+                summary_ko = f.read()
+            
+            image_paths = ["images/slide_0.png", "images/slide_1.png", "images/slide_2.png"]
+            
+            # 여기서 중요한 점: 이미지가 GitHub에 반영될 시간을 10초만 더 줍니다.
+            print("GitHub 반영 대기 중...")
+            time.sleep(10)
+            
+            # 기존 업로드 함수 실행 (article 대신 summary_ko 전달하도록 소폭 수정 필요)
+            upload_to_insta(image_paths, summary_ko)
+        print("--- 업로드 프로세스 종료 ---")
+
 # 3. 인스타그램 업로드 (깔끔한 한국어 본문)
 def upload_to_insta(image_paths, article):
     access_token = os.getenv('INSTA_ACCESS_TOKEN')

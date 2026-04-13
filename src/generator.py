@@ -24,8 +24,8 @@ def upload_to_instagram():
     # 3. 인스타그램 API는 "인터넷에 공개된 이미지 주소"가 필요합니다.
     # 자신의 GitHub 유저네임과 저장소 이름을 여기에 맞게 수정하세요.
     # 예: https://raw.githubusercontent.com/유저명/저장소명/main/images/result.png
-    user_name = "본인의_GitHub_유저네임"
-    repo_name = "본인의_저장소_이름"
+    user_name = "bomhi"
+    repo_name = "insta-automation"
     image_url = f"https://raw.githubusercontent.com/{user_name}/{repo_name}/main/images/result.png"
 
     # A. 미디어 컨테이너 생성

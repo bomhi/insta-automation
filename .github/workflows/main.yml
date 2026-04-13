@@ -2,6 +2,8 @@ name: InstaAuto
 on:
   push:
     branches: [ "main" ]
+  schedule:
+    - cron: '0 0 * * *'  # UTC 기준 00:00 (한국 시간 오전 9시)
   workflow_dispatch:
 
 jobs:

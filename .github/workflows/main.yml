@@ -4,12 +4,8 @@ on:
   push:
     branches: [ "main" ]
   schedule:
-    - cron: '0 0 * * *'  # 매일 한국 시간 오전 9시 자동 실행
-  workflow_dispatch:      # 수동 실행 버튼 활성화
-
-# 핵심: 환경 변수 설정으로 경고 메시지 제거
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -26,18 +22,24 @@ jobs:
       - name: Install dependencies
         run: pip install Pillow requests deep-translator
 
-      - name: Run generator
+      # 1단계: 이미지 생성만 수행
+      - name: Generate Images
         env:
-          INSTA_USER_ID: ${{ secrets.INSTA_USER_ID }}
-          INSTA_ACCESS_TOKEN: ${{ secrets.INSTA_ACCESS_TOKEN }}
-          INSTA_CAPTION: ${{ secrets.INSTA_CAPTION }}
-        run: python src/generator.py
+          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
+        run: python src/generator.py --generate
 
+      # 2단계: 생성된 이미지를 GitHub 저장소에 먼저 올림 (매우 중요!)
       - name: Commit and Push
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           git add images/
-          # 변경사항이 없을 때 에러 방지용 || echo
-          git commit -m "Auto-generate card" || echo "No changes to commit"
+          git commit -m "Auto-generate news images" || echo "No changes"
           git push
+
+      # 3단계: 이미지가 인터넷(GitHub)에 올라온 후 인스타그램에 업로드 명령
+      - name: Upload to Instagram
+        env:
+          INSTA_USER_ID: ${{ secrets.INSTA_USER_ID }}
+          INSTA_ACCESS_TOKEN: ${{ secrets.INSTA_ACCESS_TOKEN }}
+        run: python src/generator.py --upload

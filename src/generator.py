@@ -3,29 +3,66 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 
 def create_card():
-    # 1. 배경 이미지 생성 (예쁜 보라색 그라데이션 느낌)
+    # 1. 이미지 생성
     width, height = 1080, 1080
     img = Image.new('RGB', (width, height), color=(100, 50, 255))
     draw = ImageDraw.Draw(img)
     
-    # 2. 텍스트 넣기 (크고 아름답게)
-    # 글꼴이 없다면 기본 글꼴을 사용합니다.
     text = "오늘의 자동화 성공!\nGitHub Actions 완료"
     
-    # 텍스트를 중앙에 배치하기 위한 설정
-    # (폰트 파일이 저장소에 있다면 그 경로를 적어주세요. 없으면 기본 폰트 사용)
     try:
-        # NanumSquareR.ttf 파일이 저장소 루트에 있다면 아래 코드가 작동합니다.
-        font = ImageFont.truetype("NanumSquareR.ttf", 80)
-    except:
+        # 폰트 파일이 없을 경우 대비
         font = ImageFont.load_default()
+    except:
+        font = None
 
-    # 텍스트 그리기 (하얀색, 중앙 정렬 느낌)
+    # 중앙에 텍스트 그리기
     draw.text((width//2, height//2), text, fill=(255, 255, 255), anchor="mm", align="center")
     
     if not os.path.exists("images"):
         os.makedirs("images")
+    
     img.save("images/result.png")
-    print("새로운 디자인 이미지 생성 완료")
+    print("이미지 생성 완료: images/result.png")
 
-# ... (아래 upload_to_instagram 함수는 기존과 동일하게 유지)
+def upload_to_instagram():
+    # 2. GitHub Secrets에서 정보 가져오기
+    access_token = os.getenv('INSTA_ACCESS_TOKEN')
+    account_id = os.getenv('INSTA_USER_ID')
+    caption = os.getenv('INSTA_CAPTION', 'GitHub Actions로 자동 게시된 포스트입니다! #coding #automation')
+    
+    # 본인의 정보로 꼭 수정하세요!
+    user_name = "bomhi" 
+    repo_name = "insta-automation"
+    image_url = f"https://raw.githubusercontent.com/bomhi/insta-automation/main/images/result.png"
+
+    print(f"업로드 시도 중... 이미지 URL: {image_url}")
+
+    # A. 미디어 컨테이너 생성 (인스타 서버에 이미지 알리기)
+    post_url = f"https://graph.facebook.com/v19.0/{account_id}/media"
+    payload = {
+        'image_url': image_url,
+        'caption': caption,
+        'access_token': access_token
+    }
+    response = requests.post(post_url, data=payload)
+    res_data = response.json()
+    
+    if 'id' in res_data:
+        creation_id = res_data['id']
+        # B. 실제 게시물 업로드 승인
+        publish_url = f"https://graph.facebook.com/v19.0/{account_id}/media_publish"
+        publish_payload = {
+            'creation_id': creation_id,
+            'access_token': access_token
+        }
+        publish_res = requests.post(publish_url, data=publish_payload)
+        print("인스타그램 게시 최종 성공!", publish_res.json())
+    else:
+        print("업로드 단계 1 실패:", res_data)
+
+if __name__ == "__main__":
+    # 1. 그림 그리기 실행
+    create_card()
+    # 2. 인스타 업로드 실행
+    upload_to_instagram()

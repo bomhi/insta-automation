@@ -36,22 +36,30 @@ def create_card(title_ko):
     # 텍스트 강조 디자인
     label = "GLOBAL TRENDING NEWS"
     
+# --- 폰트 설정 부분 수정 ---
     try:
-        # 폰트가 없다면 기본 사용 (가급적 나눔스퀘어 같은 .ttf 파일을 저장소에 올리는 걸 추천)
-        font = ImageFont.load_default()
-    except:
-        font = None
+        # 루트에 있는 폰트 파일을 읽어옵니다. 크기는 80으로 크게 설정!
+        # 파일명이 정확히 'NanumSquareR.ttf'인지 대소문자를 꼭 확인하세요.
+        font_main = ImageFont.truetype("NanumSquareR.ttf", 80)
+        font_label = ImageFont.truetype("NanumSquareR.ttf", 40)
+    except Exception as e:
+        print(f"폰트를 찾을 수 없어 기본 폰트를 사용합니다: {e}")
+        font_main = ImageFont.load_default()
+        font_label = ImageFont.load_default()
+    # --------------------------
 
     # 상단 라벨 (초록색 포인트)
     draw.text((width//2, 150), label, fill=(0, 255, 127), anchor="mm")
     
     # 메인 제목 (크게, 상단 배치)
-    # 제목이 길면 자동 줄바꿈 (대략 15자 기준)
+    # 한 줄에 약 12자씩 끊어서 출력 (폰트가 커졌으므로 글자수를 줄임)
     wrapped_title = ""
-    for i in range(0, len(title_ko), 15):
-        wrapped_title += title_ko[i:i+15] + "\n"
+    for i in range(0, len(title_ko), 12):
+        wrapped_title += title_ko[i:i+12] + "\n"
 
-    draw.text((width//2, 400), wrapped_title.strip(), fill=(255, 255, 255), anchor="mm", align="center", spacing=20)
+# 중앙에 흰색으로 제목 쓰기
+    draw.text((width//2, 450), wrapped_title.strip(), fill=(255, 255, 255), 
+              font=font_main, anchor="mm", align="center", spacing=30)
     
     if not os.path.exists("images"):
         os.makedirs("images")

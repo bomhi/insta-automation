@@ -26,7 +26,7 @@ def upload_to_instagram():
     # 예: https://raw.githubusercontent.com/유저명/저장소명/main/images/result.png
     user_name = "bomhi"
     repo_name = "insta-automation"
-    image_url = f"https://raw.githubusercontent.com/{user_name}/{repo_name}/main/images/result.png"
+    image_url = f"https://raw.githubusercontent.com/bomhi/insta-automation/main/images/result.png"
 
     # A. 미디어 컨테이너 생성
     post_url = f"https://graph.facebook.com/v19.0/{account_id}/media"

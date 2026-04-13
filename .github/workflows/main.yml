@@ -1,25 +1,30 @@
 name: InstaAuto
+
 on:
   push:
     branches: [ "main" ]
   schedule:
-    - cron: '0 0 * * *'  # UTC 기준 00:00 (한국 시간 오전 9시)
-  workflow_dispatch:
+    - cron: '0 0 * * *'  # 매일 한국 시간 오전 9시 자동 실행
+  workflow_dispatch:      # 수동 실행 버튼 활성화
+
+# 핵심: 환경 변수 설정으로 경고 메시지 제거
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # v3에서 v4로 업데이트
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5  # v4에서 v5로 업데이트
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
       - name: Install dependencies
-        run: pip install Pillow requests  # requests 라이브러리 추가 설치
+        run: pip install Pillow requests
 
       - name: Run generator
         env:
@@ -33,5 +38,6 @@ jobs:
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           git add images/
+          # 변경사항이 없을 때 에러 방지용 || echo
           git commit -m "Auto-generate card" || echo "No changes to commit"
           git push

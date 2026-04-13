@@ -24,7 +24,7 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies
-        run: pip install Pillow requests
+        run: pip install Pillow requests deep-translator
 
       - name: Run generator
         env:

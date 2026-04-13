@@ -1,4 +1,4 @@
-name: insta-automation
+name: InstaAuto
 on:
   push:
     branches: [ "main" ]  # 내 저장소의 기본 브랜치 이름이 'main'인지 확인하세요.

@@ -1,44 +1,62 @@
 import os
 import requests
 import time
+import sys
+import random
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from deep_translator import GoogleTranslator
 
-# 1. [여기에 넣으세요] 금지 단어 목록 (대소문자 구분 없이 검사하도록 소문자로 작성)
-BLACKLIST = [
-    'death', 'killed', 'murder', 'blood', 'suicide', 'accident', 
-    'war', 'terror', 'shooting', 'dead', 'violence', 'cruel',
-    'rape', 'abuse', 'victim', 'tragedy', 'fatal', 'bomb', 'attack'
-]
+# 1. 설정 및 필터
+CATEGORIES = {
+    'positive': ['technology', 'science', 'business'],
+    'impact': ['general']
+}
+SOFT_BLACKLIST = ['brutal', 'mutilated', 'disturbing', 'graphic', 'gore', 'suicide']
 
-# 1. 뉴스 데이터 수집 및 번역 (로그용 비교 데이터 생성)
+# 2. 뉴스 수집 및 번역
 def get_processed_news():
     api_key = os.getenv('NEWS_API_KEY')
-    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
     
-    # 인기 뉴스 10개를 가져와서 필터링 시작
-    url = f"https://newsapi.org/v2/everything?q=world&language=en&from={yesterday}&sortBy=popularity&pageSize=10&apiKey={api_key}"
+    # 80% 확률로 유익한 뉴스, 20% 확률로 사건/사고 뉴스 선택
+    is_impact = random.random() < 0.2
+    group = 'impact' if is_impact else 'positive'
+    target_cat = 'general' if is_impact else random.choice(CATEGORIES['positive'])
+    query = "breaking" if is_impact else ""
+
+    url = f"https://newsapi.org/v2/top-headlines?country=us&category={target_cat}&q={query}&apiKey={api_key}"
     
     try:
         data = requests.get(url).json()
-        articles = data.get('articles', [])
+        articles = [a for a in data.get('articles', []) if a.get('urlToImage') and a.get('description')]
         
-        selected_article = None
-        for article in articles:
-            # 제목과 내용에서 금지 단어가 있는지 검사
-            content_to_check = (article['title'] + article['description']).lower()
-            if any(word in content_to_check for word in BLACKLIST):
-                print(f"⚠️ 유해 콘텐츠 감지되어 패스합니다: {article['title'][:20]}...")
-                continue
-            
-            # 모든 검사를 통과한 첫 번째 뉴스 선택
-            selected_article = article
+        selected = None
+        for a in articles:
+            check_text = (a['title'] + a['description']).lower()
+            if any(word in check_text for word in SOFT_BLACKLIST): continue
+            selected = a
             break
-            
-        if not selected_article: return None
+        
+        if not selected: return None
 
-# 2. 이미지 생성 (1번: 블러+제목, 2~3번: 사진만)
+        translator = GoogleTranslator(source='en', target='ko')
+        ko_title = translator.translate(selected['title'])
+        ko_desc = translator.translate(selected['description'])
+        
+        # 요약 (본문용)
+        summary_ko = f"📍 {ko_title}\n\n"
+        for s in ko_desc.split('. ')[:4]:
+            if len(s) > 5: summary_ko += f"• {s.strip()}\n"
+
+        return {
+            'group': group,
+            'ko_title': ko_title,
+            'summary_ko': summary_ko,
+            'image_url': selected['urlToImage']
+        }
+    except: return None
+
+# 3. 이미지 생성 (디자인 가변 로직)
 def create_slides(article):
     width, height = 1080, 1080
     bg_url = article['image_url']
@@ -51,59 +69,56 @@ def create_slides(article):
 
     for i in range(3):
         slide = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS)
-        if i == 0: # 첫 장만 특수 효과
-            slide = slide.filter(ImageFilter.GaussianBlur(radius=15))
-            slide = ImageEnhance.Brightness(slide).enhance(0.5)
+        
+        if i == 0: # 첫 번째 장: 뉴스 성격에 따라 디자인 변경
+            # 사건 사고(impact)면 블러 강하게(25), 평소면 15
+            blur_radius = 25 if article['group'] == 'impact' else 15
+            slide = slide.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            slide = ImageEnhance.Brightness(slide).enhance(0.4)
+            
             draw = ImageDraw.Draw(slide)
             try:
                 font = ImageFont.truetype("NanumSquareR.ttf", 80)
+                font_label = ImageFont.truetype("NanumSquareR.ttf", 45)
             except:
-                font = ImageFont.load_default()
+                font = font_label = ImageFont.load_default()
+            
+            # 사건 사고면 빨간색 + 🚨, 평소면 흰색 + 💡
+            title_color = (255, 80, 80) if article['group'] == 'impact' else (255, 255, 255)
+            label_text = "🚨 BREAKING NEWS" if article['group'] == 'impact' else "💡 DAILY TECH & BIZ"
+            
+            draw.text((width//2, 200), label_text, fill=title_color, font=font_label, anchor="mm")
             
             # 제목 줄바꿈
             text = article['ko_title']
             wrapped = "".join([text[j:j+12] + "\n" for j in range(0, len(text), 12)])
-            draw.text((width//2, height//2), wrapped.strip(), fill=(255,255,255), font=font, anchor="mm", align="center")
+            draw.text((width//2, height//2), wrapped.strip(), fill=(255,255,255), font=font, anchor="mm", align="center", spacing=20)
         
         path = f"images/slide_{i}.png"
         slide.save(path)
         image_paths.append(path)
     return image_paths
 
+# 4. 메인 컨트롤러 (Generate/Upload 분리)
 def main():
-    # 실행 인자 확인 (--generate 인지 --upload 인지)
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
 
     if mode == "--generate":
-        print("--- 이미지 생성 모드 시작 ---")
         if not os.path.exists("images"): os.makedirs("images")
         data = get_processed_news()
         if data:
             create_slides(data)
-            # 나중에 업로드 때 쓰기 위해 요약본을 임시 파일로 저장
             with open("summary.txt", "w", encoding="utf-8") as f:
                 f.write(data['summary_ko'])
-        print("--- 이미지 생성 완료 ---")
+            print(f"[{data['group']}] 이미지 생성 완료")
 
     elif mode == "--upload":
-        print("--- 인스타그램 업로드 모드 시작 ---")
-        # 저장된 요약본 읽기
         if os.path.exists("summary.txt"):
             with open("summary.txt", "r", encoding="utf-8") as f:
                 summary_ko = f.read()
-            
-            image_paths = ["images/slide_0.png", "images/slide_1.png", "images/slide_2.png"]
-            
-            # 여기서 중요한 점: 이미지가 GitHub에 반영될 시간을 10초만 더 줍니다.
-            print("GitHub 반영 대기 중...")
-            time.sleep(10)
-            
-            # 기존 업로드 함수 실행 (article 대신 summary_ko 전달하도록 소폭 수정 필요)
-            upload_to_insta(image_paths, summary_ko)
-        print("--- 업로드 프로세스 종료 ---")
+            upload_to_insta(["images/slide_0.png", "images/slide_1.png", "images/slide_2.png"], summary_ko)
 
-# 3. 인스타그램 업로드 (깔끔한 한국어 본문)
-def upload_to_insta(image_paths, article):
+def upload_to_insta(image_paths, summary_ko):
     access_token = os.getenv('INSTA_ACCESS_TOKEN')
     account_id = os.getenv('INSTA_USER_ID')
     user_name = "bomhi"
@@ -116,29 +131,21 @@ def upload_to_insta(image_paths, article):
             'image_url': img_url, 'is_carousel_item': 'true', 'access_token': access_token
         }).json()
         if 'id' in res: container_ids.append(res['id'])
-        time.sleep(5)
+        time.sleep(7)
 
-    # 본문: 요청하신 대로 번역 요약본만 깔끔하게!
-    caption = f"🌍 오늘의 글로벌 핵심 뉴스\n\n{article['summary_ko']}\n\n#뉴스 #해외뉴스 #세계뉴스 #번역뉴스 #자동화"
-
+    caption = f"🌍 오늘의 글로벌 핵심 브리핑\n\n{summary_ko}\n\n#뉴스 #해외뉴스 #자동화 #데일리리포트"
+    
     carousel_res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
-        'media_type': 'CAROUSEL',
-        'children': ','.join(container_ids),
-        'caption': caption,
-        'access_token': access_token
+        'media_type': 'CAROUSEL', 'children': ','.join(container_ids),
+        'caption': caption, 'access_token': access_token
     }).json()
     
     if 'id' in carousel_res:
-        print("최종 게시 승인 대기 중...")
         time.sleep(30)
         requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media_publish", data={
             'creation_id': carousel_res['id'], 'access_token': access_token
         })
-        print("✅ 게시 완료!")
+        print("✅ 인스타그램 게시 완료!")
 
 if __name__ == "__main__":
-    if not os.path.exists("images"): os.makedirs("images")
-    data = get_processed_news()
-    if data:
-        paths = create_slides(data)
-        upload_to_insta(paths, data)
+    main()

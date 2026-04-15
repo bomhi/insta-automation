@@ -4,6 +4,7 @@ import time
 import sys
 import textwrap
 import random
+import shutil
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from deep_translator import GoogleTranslator
@@ -129,13 +130,18 @@ def main():
     mode = sys.argv[1]
 
     if mode == "--generate":
-        if not os.path.exists("images"): os.makedirs("images")
+        # [이미지 폴더 자동 청소 로직 추가]
+        if os.path.exists("images"):
+            print("🧹 기존 이미지 폴더를 비웁니다...")
+            shutil.rmtree("images") # 폴더 통째로 삭제
+        os.makedirs("images") # 다시 깨끗한 폴더 생성
+        
         data = get_processed_news()
         if data:
             create_slides(data)
             with open("summary.txt", "w", encoding="utf-8") as f:
                 f.write(data['summary_ko'])
-            print("\n✅ 이미지 2장과 요약문이 GitHub에 준비되었습니다. 저장소에서 확인해 주세요!")
+            print("\n✅ 기존 사진 삭제 후 새 콘텐츠 준비 완료!")
 
     elif mode == "--upload":
         if os.path.exists("summary.txt"):

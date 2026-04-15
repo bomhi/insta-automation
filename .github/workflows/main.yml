@@ -1,11 +1,18 @@
-name: InstaAuto
+name: WorldFolio_System
 
 on:
-  push:
-    branches: [ "main" ]
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 0 * * *'  # 매일 자동 실행 (이미지 생성만)
+  workflow_dispatch:    # 수동 실행 가능 (이미지 생성 또는 업로드 선택)
+    inputs:
+      action:
+        description: '실행할 작업을 선택하세요'
+        required: true
+        default: 'generate'
+        type: choice
+        options:
+          - generate
+          - upload
 
 jobs:
   build:
@@ -22,23 +29,25 @@ jobs:
       - name: Install dependencies
         run: pip install Pillow requests deep-translator
 
-      # 1단계: 이미지 생성만 수행
-      - name: Generate Images
+      # 1단계: 이미지 생성 (사용자가 generate를 선택하거나 스케줄에 의해 실행될 때)
+      - name: Generate Content
+        if: github.event.inputs.action == 'generate' || github.event_name == 'schedule'
         env:
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
         run: python src/generator.py --generate
 
-      # 2단계: 생성된 이미지를 GitHub 저장소에 먼저 올림 (매우 중요!)
       - name: Commit and Push
+        if: github.event.inputs.action == 'generate' || github.event_name == 'schedule'
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
-          git add images/
-          git commit -m "Auto-generate news images" || echo "No changes"
+          git add images/ summary.txt
+          git commit -m "Prepare news content for review" || echo "No changes"
           git push
 
-      # 3단계: 이미지가 인터넷(GitHub)에 올라온 후 인스타그램에 업로드 명령
+      # 2단계: 인스타그램 업로드 (사용자가 직접 'upload'를 선택하고 실행할 때만!)
       - name: Upload to Instagram
+        if: github.event.inputs.action == 'upload'
         env:
           INSTA_USER_ID: ${{ secrets.INSTA_USER_ID }}
           INSTA_ACCESS_TOKEN: ${{ secrets.INSTA_ACCESS_TOKEN }}

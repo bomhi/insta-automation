@@ -27,7 +27,7 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies
-        run: pip install Pillow requests deep-translator
+        run: pip install Pillow requests deep-translator beautifulsoup4
 
       # 1단계: 이미지 생성 (사용자가 generate를 선택하거나 스케줄에 의해 실행될 때)
       - name: Generate Content

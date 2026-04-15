@@ -37,13 +37,23 @@ jobs:
         run: python src/generator.py --generate
 
       - name: Commit and Push
-        if: github.event.inputs.action == 'generate' || github.event_name == 'schedule'
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
+          
+          # 서버의 최신 변경사항을 가져와서 내 작업과 합칩니다. (핵심!)
+          git pull --rebase origin main
+          
           git add images/ summary.txt
-          git commit -m "Prepare news content for review" || echo "No changes"
-          git push
+          
+          # 바뀐 내용이 있을 때만 커밋합니다.
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "Prepare news content for review"
+            git push
+          else
+            echo "No changes to commit"
+          fi
+
 
       # 2단계: 인스타그램 업로드 (사용자가 직접 'upload'를 선택하고 실행할 때만!)
       - name: Upload to Instagram

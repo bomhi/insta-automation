@@ -9,84 +9,92 @@ import shutil
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from deep_translator import GoogleTranslator
-from bs4 import BeautifulSoup # 크롤링을 위한 라이브러리
+from bs4 import BeautifulSoup
 
 # [설정]
 INSTA_ID = "@world_folio"
-SOFT_BLACKLIST = ['brutal', 'mutilated', 'disturbing', 'graphic', 'gore', 'suicide']
+# 뉴스에서 제외할 단어들 (사진 설명, 저작권 관련)
+SKIP_KEYWORDS = ['AP Photo', 'AP 사진', 'Photo/', 'Photograph', 'Caption', '©', '출처:', '연설하고', '손짓을', '기다리는', '반응하고', '재배포 금지']
+
+def is_valid_paragraph(text):
+    """사진 설명이나 저작권 정보인지 검사합니다."""
+    text = text.strip()
+    if len(text) < 60: return False # 너무 짧은 문장은 기사 내용이 아닐 확률이 높음
+    if any(kw in text for kw in SKIP_KEYWORDS): return False
+    if text.startswith('(') and text.endswith(')'): return False
+    return True
 
 def crawl_full_text(url):
-    """기사 URL에서 본문 텍스트를 크롤링합니다."""
+    """기사 URL에서 본문 텍스트를 크롤링하고 정제합니다."""
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
     try:
         res = requests.get(url, headers=headers, timeout=10)
-        res.raise_for_status()
         soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # 일반적인 뉴스 사이트의 본문이 들어있는 <p> 태그들을 수집
         paragraphs = soup.find_all('p')
-        content = " ".join([p.get_text().strip() for p in paragraphs if len(p.get_text()) > 40])
         
-        # 너무 긴 경우 번역 제한을 위해 앞부분 2500자만 사용
-        return content[:2500] if len(content) > 100 else None
-    except Exception as e:
-        print(f"⚠️ 크롤링 실패 ({url}): {e}")
+        valid_paragraphs = []
+        for p in paragraphs:
+            txt = p.get_text().strip()
+            if is_valid_paragraph(txt):
+                # 불필요한 접두어 제거 (예: 지역명 (AP) --- )
+                txt = re.sub(r'^[^-]*\(AP\) — ', '', txt)
+                txt = re.sub(r'^[^-]*— ', '', txt)
+                valid_paragraphs.append(txt)
+        
+        content = " ".join(valid_paragraphs)
+        return content[:3000] if len(content) > 100 else None
+    except:
         return None
 
 def get_processed_news():
-    print("\n🔍 [1단계: 뉴스 수집 및 본문 크롤링 시작]")
+    print("\n🔍 [1단계: 뉴스 수집 및 고품질 크롤링]")
     api_key = os.getenv('NEWS_API_KEY')
-    url = f"https://newsapi.org/v2/top-headlines?country=us&pageSize=15&apiKey={api_key}"
+    url = f"https://newsapi.org/v2/top-headlines?country=us&pageSize=20&apiKey={api_key}"
     
     try:
         data = requests.get(url).json()
         articles = [a for a in data.get('articles', []) if a.get('urlToImage') and a.get('url')]
         
         for a in articles:
-            # 검증
+            # 기본 검증
             check_text = (a['title'] + (a['description'] or "")).lower()
-            if any(word in check_text for word in SOFT_BLACKLIST): continue
+            if any(word in check_text for word in ['death', 'violence', 'murder', 'blood']): continue
             
-            print(f"🔗 원문 크롤링 시도 중: {a['title'][:30]}...")
+            print(f"🔗 원문 분석 시도: {a['title'][:30]}...")
             full_text = crawl_full_text(a['url'])
             
-            # 크롤링 실패 시 NewsAPI의 기본 content 사용 (백업)
+            # 크롤링 실패 시 기본 데이터 활용
             if not full_text:
-                print("💡 크롤링 결과가 부족하여 기본 데이터를 사용합니다.")
                 full_text = (a['description'] or "") + " " + (a['content'] or "")
+                full_text = re.sub(r'\[\+\d+ chars\]', '', full_text)
 
-            # 특수 기호 및 노이즈 제거
-            full_text = re.sub(r'\[\+\d+ chars\]', '', full_text)
-            
-            # 번역 (내용이 길면 나누어서 번역하거나 핵심만 번역)
             translator = GoogleTranslator(source='en', target='ko')
             ko_title = translator.translate(a['title'])
             
-            # 본문 번역 (너무 길면 에러날 수 있으므로 1500자 정도로 끊음)
-            ko_full_text = translator.translate(full_text[:1500])
+            # 번역 (내용이 너무 길면 끊어서 번역)
+            ko_full_text = translator.translate(full_text[:2000])
             source_name = a['source']['name'] or "Global News"
             
-            # [8~10줄 분량의 유연한 요약 로직]
+            # [요약 구성: 8~12줄 목표]
             summary = f"📍 {ko_title}\n\n"
-            # 문장 분리 (마침표 기준)
-            raw_sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 15]
+            sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 20]
             
-            # 중복 및 유사 문장 필터링하며 8~10문장 선정
             final_sentences = []
-            for s in raw_sentences:
-                if s not in final_sentences and len(final_sentences) < 9:
-                    # 너무 긴 문장은 적당히 자르거나 정제
-                    clean_s = s.replace('\n', ' ').strip()
-                    final_sentences.append(clean_s)
+            for s in sentences:
+                # 번역된 결과에서도 사진 설명 묘사체 제거
+                if any(kw in s for kw in ['연설하는', '사진/', '제공', '설명하고']): continue
+                if s not in final_sentences and len(final_sentences) < 10:
+                    final_sentences.append(s)
             
             for s in final_sentences:
                 summary += f"• {s}.\n"
             
-            # 분량이 모자랄 경우를 대비한 문구 추가
-            if len(final_sentences) < 6:
-                summary += f"\n👉 현재 {source_name}을 포함한 주요 외신에서 해당 이슈를 비중 있게 다루고 있으며, 추가적인 분석 결과가 나오는 대로 업데이트될 예정입니다."
+            # 분량이 너무 적으면 다음 기사로 패스
+            if len(final_sentences) < 5:
+                print("⏩ 내용 부족으로 다음 기사를 찾습니다.")
+                continue
 
-            print(f"✅ 기사 요약 완료 (분량: {len(final_sentences) + 2}줄)")
+            print(f"✅ 정제된 뉴스 리포트 생성 완료 (출처: {source_name})")
             return {
                 'ko_title': ko_title, 
                 'summary_ko': summary, 
@@ -94,43 +102,66 @@ def get_processed_news():
                 'source_name': source_name
             }
     except Exception as e:
-        print(f"❌ 뉴스 수집 중 치명적 오류: {e}")
+        print(f"❌ 뉴스 수집 중 오류: {e}")
     return None
 
-# ... [create_slides, upload_to_insta 함수는 기존과 동일하게 유지] ...
-
 def create_slides(article):
-    # (이전 코드와 동일: 슬라이드 1은 시각화, 슬라이드 2는 원본 사진)
-    # 생략된 부분은 이전 마스터 버전을 그대로 사용하세요.
-    pass
+    print("\n🎨 [2단계: 이미지 슬라이드 2장 생성]")
+    width, height = 1080, 1080
+    image_paths = []
+    
+    try:
+        res = requests.get(article['image_url'], stream=True, timeout=10)
+        raw_img = Image.open(res.raw).convert('RGB')
+    except:
+        raw_img = Image.new('RGB', (width, height), color=(30, 30, 30))
+
+    font_path = "NanumSquareR.ttf"
+    try:
+        title_font = ImageFont.truetype(font_path, 72)
+        id_font = ImageFont.truetype(font_path, 26)
+        source_font = ImageFont.truetype(font_path, 20)
+    except:
+        title_font = id_font = source_font = ImageFont.load_default()
+
+    # --- 슬라이드 1: 타이틀 카드 ---
+    s1 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS)
+    s1 = s1.filter(ImageFilter.GaussianBlur(radius=35))
+    s1 = ImageEnhance.Brightness(s1).enhance(0.25)
+    
+    draw = ImageDraw.Draw(s1)
+    # 우측 상단 ID
+    draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 120), font=id_font, anchor="ra")
+    # 중앙 제목
+    wrapped_title = textwrap.fill(article['ko_title'], width=14)
+    draw.multiline_text((width//2, height//2), wrapped_title, fill=(255, 255, 255), 
+                        font=title_font, anchor="mm", align="center", spacing=25)
+    # 우측 하단 출처
+    draw.text((width - 50, height - 50), f"출처: {article['source_name']}", fill=(255, 255, 255, 90), font=source_font, anchor="rd")
+    
+    s1.save("images/slide_0.png", quality=95)
+    image_paths.append("images/slide_0.png")
+
+    # --- 슬라이드 2: 메인 사진 (Letterbox) ---
+    s2_orig = raw_img.copy()
+    s2_orig.thumbnail((width - 100, height - 100), Image.Resampling.LANCZOS)
+    s2 = Image.new('RGB', (width, height), color=(15, 15, 15))
+    s2.paste(s2_orig, ((width - s2_orig.size[0]) // 2, (height - s2_orig.size[1]) // 2))
+    
+    s2.save("images/slide_1.png", quality=95)
+    image_paths.append("images/slide_1.png")
+    
+    print("✅ 슬라이드 생성 완료")
+    return image_paths
 
 def main():
     if len(sys.argv) < 2: return
     mode = sys.argv[1]
 
     if mode == "--generate":
-        # 1. 기존 이미지 폴더 청소
+        # 안전한 폴더 생성 및 기존 파일 삭제
         if os.path.exists("images"):
-            print("🧹 기존 이미지 폴더를 비웁니다...")
-            shutil.rmtree("images")
-        os.makedirs("images")
+            shutil.rmtree("images", ignore_errors=True)
+        os.makedirs("images", exist_ok=True)
         
-        # 2. 기존 요약 파일(summary.txt) 삭제 (요청하신 기능!)
-        if os.path.exists("summary.txt"):
-            print("📄 기존 요약 파일을 삭제합니다...")
-            os.remove("summary.txt")
-        
-        # 3. 새로운 뉴스 데이터 생성
-        data = get_processed_news()
-        if data:
-            create_slides(data)
-            with open("summary.txt", "w", encoding="utf-8") as f:
-                f.write(data['summary_ko'])
-            print("\n✅ 모든 예전 데이터를 지우고 고품질 새 콘텐츠를 준비했습니다!")
-
-    elif mode == "--upload":
-        # (이전 업로드 로직과 동일)
-        pass
-
-if __name__ == "__main__":
-    main()
+        if os

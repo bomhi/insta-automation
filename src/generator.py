@@ -145,11 +145,75 @@ def upload_to_insta(summary_ko):
     print("\n📤 [3단계: 인스타그램 최종 게시]")
     access_token = os.getenv('INSTA_ACCESS_TOKEN')
     account_id = os.getenv('INSTA_USER_ID')
-    user_name = "bomhi"
-    repo_name = "insta-automation"
+    user_name = "bomhi" # 사용자님의 GitHub ID
+    repo_name = "insta-automation" # 사용자님의 저장소 이름
     
     container_ids = []
+    # 3장 업로드 루프
     for i in range(3):
         img_url = f"https://raw.githubusercontent.com/{user_name}/{repo_name}/main/images/slide_{i}.png?t={int(time.time())}"
+        # 아래 줄이 오류가 났던 부분입니다. 따옴표와 괄호를 정확히 닫았습니다.
         res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
-            'image_url': img_url, 'is_carousel_item
+            'image_url': img_url, 
+            'is_carousel_item': 'true', 
+            'access_token': access_token
+        }).json()
+        
+        if 'id' in res:
+            container_ids.append(res['id'])
+            print(f"✅ 슬라이드 {i} 컨테이너 생성 성공")
+        else:
+            print(f"❌ 슬라이드 {i} 생성 실패: {res}")
+        time.sleep(10)
+
+    # 슬라이드 합치기 (Carousel 생성)
+    carousel_res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
+        'media_type': 'CAROUSEL', 
+        'children': ','.join(container_ids),
+        'caption': summary_ko + "\n\n#news #global #insight #world_folio", 
+        'access_token': access_token
+    }).json()
+    
+    if 'id' in carousel_res:
+        print("⏳ 게시물 최종 승인 대기 중 (60초)...")
+        time.sleep(60)
+        requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media_publish", data={
+            'creation_id': carousel_res['id'], 
+            'access_token': access_token
+        })
+        print("🎉 인스타그램 업로드 완료!")
+    else:
+        print(f"❌ 최종 게시 실패: {carousel_res}")
+
+def main():
+    if len(sys.argv) < 2: return
+    mode = sys.argv[1]
+
+    if mode == "--generate":
+        # 이미지 폴더 및 요약 파일 초기화
+        if os.path.exists("images"):
+            shutil.rmtree("images", ignore_errors=True)
+        os.makedirs("images", exist_ok=True)
+        
+        if os.path.exists("summary.txt"):
+            os.remove("summary.txt")
+        
+        data = get_processed_news()
+        if data:
+            create_slides(data)
+            with open("summary.txt", "w", encoding="utf-8") as f:
+                f.write(data['summary_ko'])
+            print("🚀 모든 콘텐츠가 성공적으로 생성되었습니다!")
+        else:
+            print("❌ 적절한 뉴스를 찾지 못했습니다.")
+    
+    elif mode == "--upload":
+        if os.path.exists("summary.txt"):
+            with open("summary.txt", "r", encoding="utf-8") as f:
+                summary = f.read()
+            upload_to_insta(summary)
+        else:
+            print("❌ 요약 파일(summary.txt)이 없습니다. 먼저 generate를 실행하세요.")
+
+if __name__ == "__main__":
+    main()

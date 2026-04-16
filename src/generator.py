@@ -5,7 +5,7 @@ import sys
 import textwrap
 import re
 import shutil
-import random # [추가됨] 문장 랜덤 조합을 위한 모듈
+import random 
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from deep_translator import GoogleTranslator
@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 # [설정]
 INSTA_ID = "@world_folio"
 
-# 악성/광고성/보안(캡챠) 문구 완벽 차단 리스트
+# 악성/광고성/보안 문구 완벽 차단 리스트
 JUNK_PHRASES = [
     'Ben이 스토리를', '받은편지함', '가입', '동의하는', '약관', '개인 정보', 
     'Insider', '뉴스레터', '클릭하면', 'Copyright', 'All rights reserved', '무료 기사',
@@ -23,42 +23,38 @@ JUNK_PHRASES = [
 ]
 SKIP_KEYWORDS = ['AP Photo', 'AP 사진', 'Photo/', 'Photograph', 'Caption', '©', '출처:', '연설하고', '손짓을', '재배포 금지']
 
-# [기능 1]: 경제/IT 뉴스 주요 용어 사전
-GLOSSARY_DB = {
-    "VC": "벤처 캐피탈 (스타트업 투자사)",
-    "IPO": "기업공개 (증시 상장)",
-    "Anthropic": "미국의 유력 생성형 AI 개발사",
-    "OpenAI": "챗GPT를 개발한 인공지능 기업",
-    "M&A": "기업 인수합병",
-    "CEO": "최고경영자",
-    "Inflation": "물가 상승",
-    "Fed": "미국 연방준비제도 (중앙은행)",
-    "Startup": "신생 창업기업",
-    "Fund": "투자 기금",
-    "AI": "인공지능",
-    "Tech": "기술 산업"
-}
+# [알고리즘 무기 1]: 시선을 끄는 1번 슬라이드 후킹 태그
+HOOK_TAGS = [
+    "🚨 글로벌 경제 핫이슈",
+    "💡 알아두면 쓸데있는 비즈니스",
+    "🔥 지금 전 세계가 주목하는 뉴스",
+    "📈 오늘의 마켓 하이라이트",
+    "🌐 놓치면 후회할 글로벌 트렌드"
+]
 
-# [기능 2]: 자연스러운 다이내믹 템플릿 (기계적인 반복 방지)
+# [알고리즘 무기 2]: 댓글 유도형 질문 (캡션용)
+ENGAGEMENT_QUESTIONS = [
+    "여러분은 이 상황에 대해 어떻게 생각하시나요? 자유롭게 댓글로 의견을 남겨주세요! 👇",
+    "이 이슈가 우리의 일상에 어떤 영향을 미칠까요? 여러분의 생각을 들려주세요! 💬",
+    "더 깊이 알고 싶은 점이 있다면 언제든 댓글로 남겨주세요! 📝",
+    "이 뉴스에 공감하시나요? 주변에 알리고 싶다면 저장과 공유를 잊지 마세요! 🔖"
+]
+
+# 다이내믹 템플릿 (기계적인 반복 방지)
 INTROS = [
     "사실이 알려지며 전 세계적인 관심을 모으고 있습니다. 현재 이 사안은 주요 외신들 사이에서도 비중 있게 다뤄지며 다양한 해석을 낳고 있는 상황입니다.",
     "최근 글로벌 시장과 주요 업계의 시선이 이 소식에 집중되고 있습니다. 향후 판도를 바꿀 수 있는 핵심 이슈인 만큼 그 파장에 이목이 쏠립니다.",
-    "해당 소식이 전해지면서 전문가들 사이에서 뜨거운 화두로 떠오르고 있습니다. 새로운 트렌드의 변곡점이 될지 시장의 관심이 뜨겁습니다.",
-    "국제 사회와 경제 전반에 걸쳐 해당 이슈가 적지 않은 파장을 일으키고 있습니다. 단순한 소식을 넘어 향후 지각 변동을 예고하는 대목입니다."
+    "해당 소식이 전해지면서 전문가들 사이에서 뜨거운 화두로 떠오르고 있습니다. 새로운 트렌드의 변곡점이 될지 시장의 관심이 뜨겁습니다."
 ]
-
 TRANSITIONS = [
     "특히 이번 과정에서 나타난 특징적인 요소들은 기존의 흐름과는 전혀 다른 양상을 보이고 있어 주목할 만합니다.",
     "무엇보다 이번 사안의 이면에 자리한 전략적 의도와 시장의 즉각적인 반응이 향후 흐름을 가늠할 중요한 잣대가 될 것으로 보입니다.",
-    "이러한 움직임은 단순한 해프닝을 넘어, 급변하는 글로벌 정세 속에서 새로운 주도권을 쥐기 위한 발빠른 행보로 풀이됩니다.",
-    "전문가들은 이 같은 변화가 관련 산업 및 경제 전반에 걸쳐 새로운 연쇄 작용을 촉발할 가능성이 높다고 분석하고 있습니다."
+    "이러한 움직임은 단순한 해프닝을 넘어, 급변하는 글로벌 정세 속에서 새로운 주도권을 쥐기 위한 발빠른 행보로 풀이됩니다."
 ]
-
 CONCLUSIONS = [
     "결국 단기적인 성과보다는 고유의 경쟁력과 지속 가능성을 확보하는 것이 향후 가장 중요한 과제가 될 것으로 보입니다.",
     "앞으로의 구체적인 대응 방식과 후속 조치가 어떤 실질적 결과를 낳을지 전 세계가 예의주시해야 할 시점입니다.",
-    "기대와 우려가 교차하는 가운데, 향후 뚜렷한 모멘텀을 만들어내며 시장에 안착할 수 있을지가 핵심 관건입니다.",
-    "결과적으로 이번 이슈는 앞으로 다가올 거대한 변화의 신호탄일 수 있으며, 이에 대한 철저한 대비와 전략적 접근이 필요해 보입니다."
+    "기대와 우려가 교차하는 가운데, 향후 뚜렷한 모멘텀을 만들어내며 시장에 안착할 수 있을지가 핵심 관건입니다."
 ]
 
 def is_valid_paragraph(text):
@@ -80,7 +76,7 @@ def crawl_full_text(url):
         return None
 
 def get_processed_news():
-    print("\n🔍 [1단계: 뉴스 수집 및 다이내믹 문맥 조합]")
+    print("\n🔍 [1단계: 뉴스 수집 및 매거진 템플릿 세팅]")
     api_key = os.getenv('NEWS_API_KEY')
     
     urls = [
@@ -118,30 +114,30 @@ def get_processed_news():
             sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
             if len(sentences) < 3: continue
 
-            # --- [수정됨]: 문맥 랜덤 조합으로 매번 다른 스타일 연출 ---
+            # 2번 슬라이드에 띄울 '핵심 한 줄 요약' 추출 (보통 첫 문장이 가장 중요)
+            core_message = sentences[0]
+
             intro_text = random.choice(INTROS)
             trans_text = random.choice(TRANSITIONS)
             concl_text = random.choice(CONCLUSIONS)
+            hook_text = random.choice(HOOK_TAGS)
+            engagement_text = random.choice(ENGAGEMENT_QUESTIONS)
 
+            # 캡션(게시글) 조립
             summary = f"📢 [{ko_title}]\n\n"
             summary += f"{intro_text}\n\n"
-            
             body_text = ". ".join(sentences[0:3])
             summary += f"해당 사안의 구체적인 내용을 살펴보면, {body_text}. {trans_text}\n\n"
-            
             conclusion_text = sentences[3] if len(sentences) > 3 else sentences[-1]
             summary += f"{conclusion_text}. {concl_text}\n\n"
-            summary += "간단히 보기"
-
-            glossary_list = []
-            for key, value in GLOSSARY_DB.items():
-                if re.search(r'\b' + re.escape(key) + r'\b', en_title, re.IGNORECASE):
-                    glossary_list.append(f"{key} : {value}")
-            glossary_text = " / ".join(glossary_list)
+            
+            # 캡션 맨 마지막에 댓글 유도 질문 삽입
+            summary += f"💡 Q. {engagement_text}"
 
             return {
                 'ko_title': ko_title, 
-                'glossary_text': glossary_text,
+                'core_message': core_message, # 2번 슬라이드 이미지에 합성할 핵심 문장
+                'hook_tag': hook_text,        # 1번 슬라이드 표지용 태그
                 'summary_ko': summary, 
                 'image_url': a.get('urlToImage'), 
                 'source_name': source_name
@@ -151,7 +147,7 @@ def get_processed_news():
     return None
 
 def create_slides(article):
-    print("\n🎨 [2단계: 슬라이드 3장 제작 (심플 화이트 CTA 포함)]")
+    print("\n🎨 [2단계: 슬라이드 3장 제작 (인스타 알고리즘 최적화)]")
     width, height = 1080, 1080
     
     try:
@@ -165,40 +161,52 @@ def create_slides(article):
     font_path = "NanumSquareR.ttf"
     try:
         title_font = ImageFont.truetype(font_path, 65) 
+        hook_font = ImageFont.truetype(font_path, 35)    # 후킹 태그용 폰트
+        core_font = ImageFont.truetype(font_path, 40)    # 2번 슬라이드 본문용 폰트
         id_font = ImageFont.truetype(font_path, 28)
         source_font = ImageFont.truetype(font_path, 22)
-        glossary_font = ImageFont.truetype(font_path, 20)
         
         # 3번장 심플 폰트
         cta_main_font = ImageFont.truetype(font_path, 55)
         cta_sub_font = ImageFont.truetype(font_path, 40)
     except:
-        title_font = id_font = source_font = glossary_font = cta_main_font = cta_sub_font = ImageFont.load_default()
+        title_font = hook_font = core_font = id_font = source_font = cta_main_font = cta_sub_font = ImageFont.load_default()
 
-    # --- 1번 장: 타이틀 ---
+    # --- 1번 장: 타이틀 (후킹 태그 추가) ---
     s1 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(radius=10))
-    s1 = ImageEnhance.Brightness(s1).enhance(0.4)
+    s1 = ImageEnhance.Brightness(s1).enhance(0.35) # 글씨가 잘 보이게 조금 더 어둡게
     draw = ImageDraw.Draw(s1)
+    
     draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra")
+    
+    # 상단 후킹 태그 (노란색으로 시선 강탈)
+    draw.text((width//2, height//2 - 160), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor="mm")
+    
+    # 메인 타이틀
     wrapped_title = textwrap.fill(article['ko_title'], width=14)
-    draw.multiline_text((width//2, height//2), wrapped_title, fill=(255, 255, 255), font=title_font, anchor="mm", align="center", spacing=30)
+    draw.multiline_text((width//2, height//2 + 20), wrapped_title, fill=(255, 255, 255), font=title_font, anchor="mm", align="center", spacing=25)
+    
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
     s1.save("images/slide_0.png")
 
-    # --- 2번 장: 기사 사진 + 용어 사전 ---
+    # --- 2번 장: [요청 반영] 하단 1/3만 어둡게 하고 뉴스 핵심 텍스트 삽입 ---
     s2_orig = raw_img.copy()
-    s2_orig.thumbnail((width - 120, height - 120), Image.Resampling.LANCZOS)
-    s2 = Image.new('RGB', (width, height), color=(15, 15, 15))
-    s2.paste(s2_orig, ((width - s2_orig.size[0]) // 2, (height - s2_orig.size[1]) // 2))
+    s2_orig.thumbnail((width - 80, height - 80), Image.Resampling.LANCZOS) # 사진을 조금 더 크게
+    s2 = Image.new('RGB', (width, height), color=(20, 20, 20))
+    s2.paste(s2_orig, ((width - s2_orig.size[0]) // 2, (height - s2_orig.size[1]) // 2 - 40)) # 살짝 위로 배치
     
-    if article['glossary_text']:
-        overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
-        draw_overlay = ImageDraw.Draw(overlay)
-        g_text = f"💡 용어 사전 | {article['glossary_text']}"
-        bbox = draw_overlay.multiline_textbbox((width//2, height - 90), g_text, font=glossary_font, anchor="ms", align="center")
-        draw_overlay.rounded_rectangle([bbox[0]-25, bbox[1]-15, bbox[2]+25, bbox[3]+15], fill=(0, 0, 0, 200), radius=12)
-        draw_overlay.multiline_text((width//2, height - 90), g_text, fill=(255, 255, 255, 240), font=glossary_font, anchor="ms", align="center")
-        s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
+    overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
+    draw_overlay = ImageDraw.Draw(overlay)
+    
+    # 하단 1/3 영역 반투명 블랙 박스 (y: 720 부터 1080 까지)
+    box_top = int(height * 0.66)
+    draw_overlay.rectangle([0, box_top, width, height], fill=(0, 0, 0, 210))
+    
+    # 텍스트 이쁘게 줄바꿈 (모바일 가독성)
+    wrapped_core = textwrap.fill(article['core_message'], width=24)
+    draw_overlay.multiline_text((width//2, box_top + (height - box_top)//2), wrapped_core, fill=(255, 255, 255, 240), font=core_font, anchor="mm", align="center", spacing=15)
+    
+    s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
     s2.save("images/slide_1.png")
 
     # --- 3번 장: 심플 화이트 배경 + 파스텔톤 텍스트 CTA ---
@@ -208,7 +216,7 @@ def create_slides(article):
     pastel_color = (120, 150, 180) 
     
     draw_s3.text((width//2, 400), "오늘의 브리핑이 유익하셨나요?", fill=pastel_color, font=cta_main_font, anchor="mm")
-    draw_s3.text((width//2, 530), "❤️ 좋아요   💬 댓글   🔖 저장", fill=(180, 180, 180), font=cta_sub_font, anchor="mm")
+    draw_s3.text((width//2, 530), "좋아요  ·  댓글  ·  저장", fill=(180, 180, 180), font=cta_sub_font, anchor="mm")
     draw_s3.text((width//2, 700), f"{INSTA_ID} 팔로우하기", fill=pastel_color, font=cta_sub_font, anchor="mm")
 
     s3.save("images/slide_2.png")

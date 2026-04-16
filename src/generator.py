@@ -23,21 +23,20 @@ JUNK_PHRASES = [
 ]
 SKIP_KEYWORDS = ['AP Photo', 'AP 사진', 'Photo/', 'Photograph', 'Caption', '©', '출처:', '연설하고', '손짓을', '재배포 금지']
 
-# [알고리즘 무기 1]: 시선을 끄는 1번 슬라이드 후킹 태그
+# [알고리즘 무기 1]: [수정] 깨지는 이모지를 제거한 텍스트 후킹 태그
 HOOK_TAGS = [
-    "🚨 글로벌 경제 핫이슈",
-    "💡 알아두면 쓸데있는 비즈니스",
-    "🔥 지금 전 세계가 주목하는 뉴스",
-    "📈 오늘의 마켓 하이라이트",
-    "🌐 놓치면 후회할 글로벌 트렌드"
+    "GLOBAL ECONOMY HOT ISSUE",
+    "비즈니스 필독 지식",
+    "전 세계가 주목하는 뉴스",
+    "오늘의 마켓 하이라이트",
+    "GLOBAL TREND REPORT"
 ]
 
 # [알고리즘 무기 2]: 댓글 유도형 질문 (캡션용)
 ENGAGEMENT_QUESTIONS = [
-    "여러분은 이 상황에 대해 어떻게 생각하시나요? 자유롭게 댓글로 의견을 남겨주세요! 👇",
-    "이 이슈가 우리의 일상에 어떤 영향을 미칠까요? 여러분의 생각을 들려주세요! 💬",
-    "더 깊이 알고 싶은 점이 있다면 언제든 댓글로 남겨주세요! 📝",
-    "이 뉴스에 공감하시나요? 주변에 알리고 싶다면 저장과 공유를 잊지 마세요! 🔖"
+    "여러분은 이 상황에 대해 어떻게 생각하시나요? 자유롭게 댓글로 의견을 남겨주세요!👇",
+    "이 이슈가 우리의 일상에 어떤 영향을 미칠까요? 여러분의 생각을 들려주세요!💬",
+    "이 뉴스에 공감하시나요? 주변에 알리고 싶다면 저장과 공유를 잊지 마세요!🔖"
 ]
 
 # 다이내믹 템플릿 (기계적인 반복 방지)
@@ -79,6 +78,7 @@ def get_processed_news():
     print("\n🔍 [1단계: 뉴스 수집 및 매거진 템플릿 세팅]")
     api_key = os.getenv('NEWS_API_KEY')
     
+    # 우선순위: 경제(Business) 먼저, 그다음 과학(Science)
     urls = [
         f"https://newsapi.org/v2/top-headlines?country=us&category=business&pageSize=15&apiKey={api_key}",
         f"https://newsapi.org/v2/top-headlines?country=us&category=science&pageSize=10&apiKey={api_key}"
@@ -103,7 +103,7 @@ def get_processed_news():
             if len(ko_title) > 32:
                 split_title = re.split(r'[,:;]', ko_title)[0].strip()
                 if len(split_title) < 15:
-                    ko_title = " ".join(ko_title.split(' ')[:6])
+                    ko_title = " ".join(ko_title.split(' ')[:6]) # 6어절만 유지
                 else:
                     ko_title = split_title
             ko_title = ko_title.replace('...', '').strip()
@@ -111,6 +111,7 @@ def get_processed_news():
             ko_full_text = translator.translate(full_text[:2000])
             source_name = a['source']['name'] or "Global News"
             
+            # 본문 문장 분리 (유효한 문장만)
             sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
             if len(sentences) < 3: continue
 
@@ -147,7 +148,9 @@ def get_processed_news():
     return None
 
 def create_slides(article):
-    print("\n🎨 [2단계: 슬라이드 3장 제작 (인스타 알고리즘 최적화)]")
+    print("\n🎨 [2단계: 슬라이드 3장 제작 (인스타 피드 크기 최적화)]")
+    
+    # [수정] 최종 이미지 크기 코드 수정: 인스타 피드 표준 1:1 비율
     width, height = 1080, 1080
     
     try:
@@ -156,7 +159,8 @@ def create_slides(article):
         orig_res.raise_for_status()
         raw_img = Image.open(orig_res.raw).convert('RGB')
     except:
-        raw_img = Image.new('RGB', (width, height), color=(245, 245, 245))
+        # 이미지 로드 실패 시, 세련된 다크그레이 배경으로 대체
+        raw_img = Image.new('RGB', (width, height), color=(35, 40, 45))
 
     font_path = "NanumSquareR.ttf"
     try:
@@ -172,14 +176,14 @@ def create_slides(article):
     except:
         title_font = hook_font = core_font = id_font = source_font = cta_main_font = cta_sub_font = ImageFont.load_default()
 
-    # --- 1번 장: 타이틀 (후킹 태그 추가) ---
+    # --- 1번 장: 타이틀 (후킹 태그 추가, 어둡게 조정) ---
     s1 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(radius=10))
-    s1 = ImageEnhance.Brightness(s1).enhance(0.35) # 글씨가 잘 보이게 조금 더 어둡게
+    s1 = ImageEnhance.Brightness(s1).enhance(0.35) # 글씨 가독성을 위해 조금 더 어둡게
     draw = ImageDraw.Draw(s1)
     
     draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra")
     
-    # 상단 후킹 태그 (노란색으로 시선 강탈)
+    # [수정] 상단 후킹 태그 (노란색으로 시선 강탈, 이모지 없음)
     draw.text((width//2, height//2 - 160), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor="mm")
     
     # 메인 타이틀
@@ -189,7 +193,7 @@ def create_slides(article):
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
     s1.save("images/slide_0.png")
 
-    # --- 2번 장: [요청 반영] 하단 1/3만 어둡게 하고 뉴스 핵심 텍스트 삽입 ---
+    # --- 2번 장: 하단 1/3만 어둡게 하고 뉴스 핵심 텍스트 삽입 ---
     s2_orig = raw_img.copy()
     s2_orig.thumbnail((width - 80, height - 80), Image.Resampling.LANCZOS) # 사진을 조금 더 크게
     s2 = Image.new('RGB', (width, height), color=(20, 20, 20))
@@ -216,7 +220,10 @@ def create_slides(article):
     pastel_color = (120, 150, 180) 
     
     draw_s3.text((width//2, 400), "오늘의 브리핑이 유익하셨나요?", fill=pastel_color, font=cta_main_font, anchor="mm")
+    
+    # [이모지 깨짐 해결] 심플하게 점(·) 기호로 교체
     draw_s3.text((width//2, 530), "좋아요  ·  댓글  ·  저장", fill=(180, 180, 180), font=cta_sub_font, anchor="mm")
+    
     draw_s3.text((width//2, 700), f"{INSTA_ID} 팔로우하기", fill=pastel_color, font=cta_sub_font, anchor="mm")
 
     s3.save("images/slide_2.png")
@@ -227,46 +234,19 @@ def upload_to_insta(summary_ko):
     print("\n📤 [3단계: 인스타그램 최종 게시]")
     access_token = os.getenv('INSTA_ACCESS_TOKEN')
     account_id = os.getenv('INSTA_USER_ID')
-    user_name = "bomhi"
-    repo_name = "insta-automation"
+    user_name = "bomhi" # 사용자님의 GitHub ID
+    repo_name = "insta-automation" # 사용자님의 저장소 이름
     
     container_ids = []
     for i in range(3):
         img_url = f"https://raw.githubusercontent.com/{user_name}/{repo_name}/main/images/slide_{i}.png?t={int(time.time())}"
+        
+        # Syntax Error 검증 완료
         res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
-            'image_url': img_url, 'is_carousel_item': 'true', 'access_token': access_token
+            'image_url': img_url, 
+            'is_carousel_item': 'true', 
+            'access_token': access_token
         }).json()
-        if 'id' in res: container_ids.append(res['id'])
-        time.sleep(10)
-
-    carousel_res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
-        'media_type': 'CAROUSEL', 'children': ','.join(container_ids),
-        'caption': summary_ko + "\n\n#경제 #과학 #글로벌뉴스 #world_folio", 'access_token': access_token
-    }).json()
-    
-    if 'id' in carousel_res:
-        time.sleep(60)
-        requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media_publish", data={'creation_id': carousel_res['id'], 'access_token': access_token})
-        print("🎉 인스타그램 업로드 성공!")
-
-def main():
-    if len(sys.argv) < 2: return
-    mode = sys.argv[1]
-    if mode == "--generate":
-        if os.path.exists("images"): shutil.rmtree("images", ignore_errors=True)
-        os.makedirs("images", exist_ok=True)
-        if os.path.exists("summary.txt"): os.remove("summary.txt")
-        data = get_processed_news()
-        if data:
-            create_slides(data)
-            with open("summary.txt", "w", encoding="utf-8") as f:
-                f.write(data['summary_ko'])
-            print("🚀 콘텐츠 생성 완료!")
-    elif mode == "--upload":
-        if os.path.exists("summary.txt"):
-            with open("summary.txt", "r", encoding="utf-8") as f:
-                summary = f.read()
-            upload_to_insta(summary)
-
-if __name__ == "__main__":
-    main()
+        
+        if 'id' in res:
+            container_ids

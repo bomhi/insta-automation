@@ -76,7 +76,7 @@ def get_processed_news():
             sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
             if len(sentences) < 4: continue
 
-            # [새로운 기능]: 영문/전문 용어 자동 해석 (텍스트 AI 활용)
+            # 영문/전문 용어 자동 해석 (텍스트 AI 활용)
             glossary_text = ""
             try:
                 glossary_prompt = f"Extract 1 or 2 difficult English words or acronyms (like companies, VC, IPO) from this news title: '{en_title}'. Explain them briefly in Korean. Format EXACTLY like 'Word : Explanation'. No intro, no outro."
@@ -86,7 +86,7 @@ def get_processed_news():
             except:
                 glossary_text = ""
 
-            # [템플릿형 본문 (광고 차단)]
+            # 템플릿형 본문 (광고 차단)
             summary = f"📢 [{ko_title}]\n\n"
             summary += f"사실이 알려지며 전 세계적인 관심을 모으고 있습니다. 현재 이 사안은 주요 외신들 사이에서도 비중 있게 다뤄지며 다양한 해석을 낳고 있는 상황입니다.\n\n"
             body_text = ". ".join(sentences[0:3])
@@ -96,7 +96,7 @@ def get_processed_news():
             summary += f"다만 일각에서는 이번 사안에 대한 적절성 논란과 함께 우려의 목소리도 제기되고 있습니다. {conclusion_text}. 결국 단기적인 성과보다는 고유의 콘텐츠 경쟁력과 지속 가능성을 확보하는 것이 향후 가장 중요한 과제가 될 것으로 보입니다.\n\n"
             summary += "간단히 보기"
 
-            # [수정된 AI 이미지 프롬프트]: 추상화 금지, 무조건 사실적이고 구체적인 묘사
+            # AI 이미지 프롬프트 (추상화 금지, 사실적 묘사)
             ai_prompt = f"A highly detailed, realistic editorial photograph depicting the literal meaning of this news: '{en_title}'. Show actual objects, people, money, or technology. NO abstract art, NO glitch art, NO text."
             ai_prompt_url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(ai_prompt)}?width=1080&height=1080&nologo=true"
 
@@ -116,26 +116,35 @@ def create_slides(article):
     print("\n🎨 [2단계: 슬라이드 3장 제작]")
     width, height = 1080, 1080
     
-    orig_res = requests.get(article['image_url'], stream=True, timeout=10)
-    raw_img = Image.open(orig_res.raw).convert('RGB')
+    # [에러 수정된 부분]: 원본 기사 사진 로드 (강력한 예외 처리 및 봇 우회)
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        orig_res = requests.get(article['image_url'], headers=headers, stream=True, timeout=10)
+        orig_res.raise_for_status() # 404, 403 에러 발생 시 즉시 except로 넘김
+        raw_img = Image.open(orig_res.raw).convert('RGB')
+    except Exception as e:
+        print(f"⚠️ 기사 원본 이미지 로드 실패 (링크 손상/차단). 대체 캔버스를 사용합니다: {e}")
+        raw_img = Image.new('RGB', (width, height), color=(30, 35, 40)) # 세련된 다크 블루그레이 배경
 
-    # AI 이미지 생성 (추상 그래픽 제외, 사실적 묘사)
+    # AI 이미지 생성
     try:
         ai_res = requests.get(article['ai_prompt_url'], stream=True, timeout=20)
+        ai_res.raise_for_status()
         ai_img = Image.open(ai_res.raw).convert('RGB')
     except Exception as e:
+        print(f"⚠️ AI 이미지 로드 실패. 대체 캔버스를 사용합니다: {e}")
         ai_img = Image.new('RGB', (width, height), color=(20, 25, 30))
 
     font_path = "NanumSquareR.ttf"
     try:
-        title_font = ImageFont.truetype(font_path, 70) # [수정]: 폰트 크기 축소 (80->70)
+        title_font = ImageFont.truetype(font_path, 70) 
         id_font = ImageFont.truetype(font_path, 28)
         source_font = ImageFont.truetype(font_path, 22)
-        glossary_font = ImageFont.truetype(font_path, 20) # 자막용 폰트
+        glossary_font = ImageFont.truetype(font_path, 20)
     except:
         title_font = id_font = source_font = glossary_font = ImageFont.load_default()
 
-    # --- 1번 장: 타이틀 (연한 블러 + 조금 작아진 제목) ---
+    # --- 1번 장: 타이틀 ---
     s1 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(radius=10))
     s1 = ImageEnhance.Brightness(s1).enhance(0.4)
     draw = ImageDraw.Draw(s1)
@@ -145,29 +154,24 @@ def create_slides(article):
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
     s1.save("images/slide_0.png")
 
-    # --- 2번 장: 기사 원본 (레터박스) + 용어 사전(Glossary) 자막 ---
+    # --- 2번 장: 기사 원본 (레터박스) + 용어 사전 자막 ---
     s2_orig = raw_img.copy()
     s2_orig.thumbnail((width - 120, height - 120), Image.Resampling.LANCZOS)
     s2 = Image.new('RGB', (width, height), color=(15, 15, 15))
     s2.paste(s2_orig, ((width - s2_orig.size[0]) // 2, (height - s2_orig.size[1]) // 2))
     
-    # 영문/전문 용어가 감지되었다면 반투명 배경과 함께 하단에 자막 추가
     if article['glossary_text']:
         overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
         draw_overlay = ImageDraw.Draw(overlay)
-        
         g_text = f"💡 {article['glossary_text']}"
-        # 텍스트 배경 박스 계산
         bbox = draw_overlay.multiline_textbbox((width//2, height - 80), g_text, font=glossary_font, anchor="ms", align="center")
         draw_overlay.rectangle([bbox[0]-20, bbox[1]-15, bbox[2]+20, bbox[3]+15], fill=(0, 0, 0, 180), radius=10)
         draw_overlay.multiline_text((width//2, height - 80), g_text, fill=(255, 255, 255, 230), font=glossary_font, anchor="ms", align="center")
-        
-        # 원본 이미지와 자막 레이어 합성
         s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
         
     s2.save("images/slide_1.png")
 
-    # --- 3번 장: 새롭게 생성된 사실적 AI 이미지 ---
+    # --- 3번 장: AI 생성 이미지 ---
     ai_img.save("images/slide_2.png")
     
     return ["images/slide_0.png", "images/slide_1.png", "images/slide_2.png"]

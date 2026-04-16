@@ -1,9 +1,14 @@
 name: WorldFolio_System
 
+# 중복 실행 방지: 여러 번 클릭해도 하나씩 순서대로 처리합니다.
+concurrency:
+  group: world-folio-group
+  cancel-in-progress: false
+
 on:
   schedule:
-    - cron: '0 0 * * *'  # 매일 자동 실행 (이미지 생성만)
-  workflow_dispatch:    # 수동 실행 가능 (이미지 생성 또는 업로드 선택)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
     inputs:
       action:
         description: '실행할 작업을 선택하세요'
@@ -17,11 +22,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 권한 설정 (푸시 에러 방지)
+    permissions:
+      contents: write
+      
     steps:
-       - name: Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 이 줄이 있어야 과거 기록까지 다 가져와서 충돌을 안 냅니다!
+          fetch-depth: 0 # 과거 기록까지 다 가져와야 동기화가 잘 됩니다.
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,39 +40,36 @@ jobs:
       - name: Install dependencies
         run: pip install Pillow requests deep-translator beautifulsoup4
 
-      # 1단계: 이미지 생성 (사용자가 generate를 선택하거나 스케줄에 의해 실행될 때)
+      # 1단계: 이미지 생성
       - name: Generate Content
         if: github.event.inputs.action == 'generate' || github.event_name == 'schedule'
         env:
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
         run: python src/generator.py --generate
 
-       - name: Commit and Push
+      # 2단계: 강력한 동기화 및 푸시
+      - name: Commit and Push
+        if: github.event.inputs.action == 'generate' || github.event_name == 'schedule'
         run: |
-          # 1. 기분 좋게 환경 설정
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           
-          # 2. 파일 추가
           git add images/ summary.txt
           
-          # 3. 변경사항이 있을 때만 진행
+          # 변경사항이 있을 때만 실행
           if [ -n "$(git status --porcelain)" ]; then
             git commit -m "Prepare news content for review"
             
-            # 4. [핵심] 서버 내용을 가져오되, 충돌 나면 내꺼(로봇) 위주로 합치기
+            # [핵심] 푸시 직전에 서버의 최신본을 다시 가져와서 내 커밋을 그 위에 얹습니다.
+            # 충돌 발생 시 '우리의 것(방금 만든 사진)'을 우선시합니다.
             git pull --rebase -X ours origin main
             
-            # 5. 밀어넣기
             git push origin main
           else
-            # 변경사항 없으면 평화롭게 종료
-            echo "No changes to commit. Everything is up to date."
+            echo "No changes to commit"
           fi
 
-
-
-      # 2단계: 인스타그램 업로드 (사용자가 직접 'upload'를 선택하고 실행할 때만!)
+      # 3단계: 인스타그램 업로드
       - name: Upload to Instagram
         if: github.event.inputs.action == 'upload'
         env:

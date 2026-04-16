@@ -249,4 +249,58 @@ def upload_to_insta(summary_ko):
         }).json()
         
         if 'id' in res:
-            container_ids
+            container_ids.append(res['id'])
+            print(f"✅ 슬라이드 {i} 업로드 준비 완료")
+        else:
+            print(f"❌ 슬라이드 {i} 오류: {res}")
+        time.sleep(10)
+
+    carousel_res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
+        'media_type': 'CAROUSEL', 
+        'children': ','.join(container_ids),
+        'caption': summary_ko + "\n\n#경제 #과학 #글로벌뉴스 #world_folio", 
+        'access_token': access_token
+    }).json()
+    
+    if 'id' in carousel_res:
+        print("⏳ 게시물 최종 승인 대기 중 (60초)...")
+        time.sleep(60)
+        requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media_publish", data={
+            'creation_id': carousel_res['id'], 
+            'access_token': access_token
+        })
+        print("🎉 인스타그램 업로드 완벽히 성공!")
+    else:
+        print(f"❌ 최종 게시 실패: {carousel_res}")
+
+def main():
+    if len(sys.argv) < 2: return
+    mode = sys.argv[1]
+
+    if mode == "--generate":
+        if os.path.exists("images"):
+            shutil.rmtree("images", ignore_errors=True)
+        os.makedirs("images", exist_ok=True)
+        
+        if os.path.exists("summary.txt"):
+            os.remove("summary.txt")
+        
+        data = get_processed_news()
+        if data:
+            create_slides(data)
+            with open("summary.txt", "w", encoding="utf-8") as f:
+                f.write(data['summary_ko'])
+            print("🚀 모든 콘텐츠 생성 완료!")
+        else:
+            print("❌ 조건에 맞는 뉴스를 찾지 못했습니다.")
+            
+    elif mode == "--upload":
+        if os.path.exists("summary.txt"):
+            with open("summary.txt", "r", encoding="utf-8") as f:
+                summary = f.read()
+            upload_to_insta(summary)
+        else:
+            print("❌ 요약 파일이 없습니다.")
+
+if __name__ == "__main__":
+    main()

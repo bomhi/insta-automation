@@ -5,7 +5,6 @@ import sys
 import textwrap
 import re
 import shutil
-import urllib.parse
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from deep_translator import GoogleTranslator
@@ -14,24 +13,33 @@ from bs4 import BeautifulSoup
 # [설정]
 INSTA_ID = "@world_folio"
 
-# 악성/광고성 문구 완벽 차단 리스트
+# 악성/광고성/보안(캡챠) 문구 완벽 차단 리스트 (대폭 강화)
 JUNK_PHRASES = [
     'Ben이 스토리를', '받은편지함', '가입', '동의하는', '약관', '개인 정보', 
-    'Insider', '뉴스레터', '클릭하면', 'Copyright', 'All rights reserved', '무료 기사'
+    'Insider', '뉴스레터', '클릭하면', 'Copyright', 'All rights reserved', '무료 기사',
+    '로봇이 아님을', '문의사항', '지원팀에 문의', '구독을 통해', '참조 ID', 'Bloomberg',
+    '계속하려면', 'JavaScript', '브라우저'
 ]
 SKIP_KEYWORDS = ['AP Photo', 'AP 사진', 'Photo/', 'Photograph', 'Caption', '©', '출처:', '연설하고', '손짓을', '재배포 금지']
 
-# [새로운 기능]: 경제/IT 뉴스 주요 용어 사전 (2번 슬라이드 하단 표시용)
+# [새로운 기능]: 경제/IT 뉴스 주요 용어 사전
 GLOSSARY_DB = {
     "VC": "벤처 캐피탈 (스타트업 투자사)",
     "IPO": "기업공개 (증시 상장)",
     "Anthropic": "미국의 유력 생성형 AI 개발사",
+    "OpenAI": "챗GPT를 개발한 인공지능 기업",
     "M&A": "기업 인수합병",
+    "CEO": "최고경영자",
+    "Inflation": "물가 상승",
     "Fed": "미국 연방준비제도 (중앙은행)",
+    "Startup": "신생 창업기업",
+    "Fund": "투자 기금",
+    "AI": "인공지능",
+    "Tech": "기술 산업"
 }
 
 def is_valid_paragraph(text):
-    """광고, 사진 설명, 너무 짧은 문장을 차단합니다."""
+    """광고, 사진 설명, 너무 짧은 문장, 보안 캡챠 문구를 차단합니다."""
     text = text.strip()
     if len(text) < 40: return False
     if any(junk in text for junk in JUNK_PHRASES): return False
@@ -87,11 +95,11 @@ def get_processed_news():
             ko_full_text = translator.translate(full_text[:2000])
             source_name = a['source']['name'] or "Global News"
             
-            # 본문 문장 분리 (유효한 문장만)
+            # 문장 분리 시에도 철저하게 JUNK 필터링 적용
             sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
             if len(sentences) < 3: continue
 
-            # --- 2. 요청하신 완벽한 템플릿형 본문 (광고 원천 차단) ---
+            # --- 2. 완벽한 템플릿형 본문 (광고 원천 차단) ---
             summary = f"📢 [{ko_title}]\n\n"
             summary += f"사실이 알려지며 전 세계적인 관심을 모으고 있습니다. 현재 이 사안은 주요 외신들 사이에서도 비중 있게 다뤄지며 다양한 해석을 낳고 있는 상황입니다.\n\n"
             
@@ -111,13 +119,8 @@ def get_processed_news():
                     glossary_list.append(f"{key} : {value}")
             glossary_text = " / ".join(glossary_list)
 
-            # --- 4. 사실적 AI 이미지 프롬프트 (추상화 방지) ---
-            ai_prompt = f"A highly realistic editorial photograph illustrating the news: '{en_title}'. Show actual business people, physical money, or real technology. Cinematic lighting, photorealistic. NO abstract art, NO graphic design, NO text."
-            ai_prompt_url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(ai_prompt)}?width=1080&height=1080&nologo=true"
-
             return {
                 'ko_title': ko_title, 
-                'ai_prompt_url': ai_prompt_url, 
                 'glossary_text': glossary_text,
                 'summary_ko': summary, 
                 'image_url': a.get('urlToImage'), 
@@ -128,10 +131,10 @@ def get_processed_news():
     return None
 
 def create_slides(article):
-    print("\n🎨 [2단계: 슬라이드 3장 제작 (안전성 강화)]")
+    print("\n🎨 [2단계: 슬라이드 3장 제작 (CTA 포함)]")
     width, height = 1080, 1080
     
-    # 1. 원본 기사 사진 로드 (봇 우회 및 에러 방어)
+    # 1. 원본 기사 사진 로드 (봇 우회)
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         orig_res = requests.get(article['image_url'], headers=headers, stream=True, timeout=10)
@@ -141,23 +144,19 @@ def create_slides(article):
         print(f"⚠️ 기사 이미지 오류(링크 손상). 대체 배경을 사용합니다.")
         raw_img = Image.new('RGB', (width, height), color=(25, 30, 35))
 
-    # 2. AI 주제 이미지 로드 (사실적 사진)
-    try:
-        ai_res = requests.get(article['ai_prompt_url'], stream=True, timeout=20)
-        ai_res.raise_for_status()
-        ai_img = Image.open(ai_res.raw).convert('RGB')
-    except Exception as e:
-        print(f"⚠️ AI 이미지 생성 지연. 대체 배경을 사용합니다.")
-        ai_img = Image.new('RGB', (width, height), color=(20, 25, 30))
-
     font_path = "NanumSquareR.ttf"
     try:
         title_font = ImageFont.truetype(font_path, 65) 
         id_font = ImageFont.truetype(font_path, 28)
         source_font = ImageFont.truetype(font_path, 22)
         glossary_font = ImageFont.truetype(font_path, 20)
+        
+        # 3번장 전용 폰트
+        cta_title_font = ImageFont.truetype(font_path, 65)
+        cta_body_font = ImageFont.truetype(font_path, 40)
+        cta_id_font = ImageFont.truetype(font_path, 45)
     except:
-        title_font = id_font = source_font = glossary_font = ImageFont.load_default()
+        title_font = id_font = source_font = glossary_font = cta_title_font = cta_body_font = cta_id_font = ImageFont.load_default()
 
     # --- 1번 장: 타이틀 (기사 원본 블러 + 줄어든 제목) ---
     s1 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(radius=10))
@@ -169,7 +168,7 @@ def create_slides(article):
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
     s1.save("images/slide_0.png")
 
-    # --- 2번 장: 기사 원본 (레터박스) + [요구사항] 하단 용어 사전 ---
+    # --- 2번 장: 기사 원본 (레터박스) + 용어 사전 ---
     s2_orig = raw_img.copy()
     s2_orig.thumbnail((width - 120, height - 120), Image.Resampling.LANCZOS)
     s2 = Image.new('RGB', (width, height), color=(15, 15, 15))
@@ -179,20 +178,28 @@ def create_slides(article):
         overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
         draw_overlay = ImageDraw.Draw(overlay)
         g_text = f"💡 용어 사전 | {article['glossary_text']}"
-        
-        # 텍스트 길이 측정 후 반투명 배경 박스 그리기
         bbox = draw_overlay.multiline_textbbox((width//2, height - 90), g_text, font=glossary_font, anchor="ms", align="center")
-        
-        # [수정된 부분]: rectangle -> rounded_rectangle
         draw_overlay.rounded_rectangle([bbox[0]-25, bbox[1]-15, bbox[2]+25, bbox[3]+15], fill=(0, 0, 0, 200), radius=12)
-        
         draw_overlay.multiline_text((width//2, height - 90), g_text, fill=(255, 255, 255, 240), font=glossary_font, anchor="ms", align="center")
         s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
         
     s2.save("images/slide_1.png")
 
-    # --- 3번 장: 새롭게 생성된 사실적 AI 이미지 ---
-    ai_img.save("images/slide_2.png")
+    # --- 3번 장: 팔로우 및 저장 유도 이미지 (CTA 카드) ---
+    s3 = Image.new('RGB', (width, height), color=(25, 30, 35)) # 세련된 다크톤 배경
+    draw_s3 = ImageDraw.Draw(s3)
+    
+    # 텍스트 배치
+    draw_s3.multiline_text((width//2, 350), "오늘의 브리핑이 유익하셨나요?", fill=(255, 255, 255), font=cta_title_font, anchor="mm", align="center")
+    draw_s3.multiline_text((width//2, 550), "❤️ 좋아요   💬 댓글   🔖 저장", fill=(180, 200, 230), font=cta_body_font, anchor="mm", align="center")
+    
+    # 팔로우 버튼 모양 그리기
+    cta_btn_text = f"{INSTA_ID} 팔로우하기"
+    btn_bbox = draw_s3.multiline_textbbox((width//2, 750), cta_btn_text, font=cta_id_font, anchor="mm", align="center")
+    draw_s3.rounded_rectangle([btn_bbox[0]-40, btn_bbox[1]-25, btn_bbox[2]+40, btn_bbox[3]+25], fill=(50, 100, 255), radius=20) # 파란색 버튼 포인트
+    draw_s3.multiline_text((width//2, 750), cta_btn_text, fill=(255, 255, 255), font=cta_id_font, anchor="mm", align="center")
+
+    s3.save("images/slide_2.png")
     
     return ["images/slide_0.png", "images/slide_1.png", "images/slide_2.png"]
 

@@ -14,16 +14,26 @@ from bs4 import BeautifulSoup
 # [설정]
 INSTA_ID = "@world_folio"
 
-# 악성/광고성/보안 문구 완벽 차단 리스트
+# [초강력 필터링] 악성/광고성/보안/제휴/금융 면책조항 완벽 차단 리스트
 JUNK_PHRASES = [
+    # 기존 차단
     'Ben이 스토리를', '받은편지함', '가입', '동의하는', '약관', '개인 정보', 
     'Insider', '뉴스레터', '클릭하면', 'Copyright', 'All rights reserved', '무료 기사',
     '로봇이 아님을', '문의사항', '지원팀에 문의', '구독을 통해', '참조 ID', 'Bloomberg',
-    '계속하려면', 'JavaScript', '브라우저', '클릭하여'
+    '계속하려면', 'JavaScript', '브라우저', '클릭하여',
+    # 제휴 마케팅, 수수료, 광고 안내문 차단
+    '이 링크를 통해', '비용을 지불', '특정 활동에 대해', '수수료를 받', '수익을 창출',
+    '제휴 링크', '스폰서', '자세히 알아보기', '여기에서 확인', '광고입니다', '당사에',
+    'affiliate', 'commission', 'sponsor', 'subscribe', 'sign up', 'click here',
+    'read more', 'learn more', 'pays us', 'generated through this link',
+    # [신규 추가] 금융 매체 법적 면책 조항 및 주의사항 원천 차단
+    'Yahoo Finance', '브로커-딜러', '투자 자문', '증권이나 암호화폐', '판매하거나', 
+    '거래를 촉진하지', '투자 권유가 아닙니다', '법적 조언', '재무 조언', '투자에 대한 책임',
+    '손실에 대해', 'broker-dealer', 'investment advisor', 'financial advice'
 ]
 SKIP_KEYWORDS = ['AP Photo', 'AP 사진', 'Photo/', 'Photograph', 'Caption', '©', '출처:', '연설하고', '손짓을', '재배포 금지']
 
-# [알고리즘 무기 1]: [수정] 깨지는 이모지를 제거한 텍스트 후킹 태그
+# [알고리즘 무기 1]: 깨지는 이모지를 제거한 텍스트 후킹 태그
 HOOK_TAGS = [
     "GLOBAL ECONOMY HOT ISSUE",
     "비즈니스 필독 지식",
@@ -36,10 +46,11 @@ HOOK_TAGS = [
 ENGAGEMENT_QUESTIONS = [
     "여러분은 이 상황에 대해 어떻게 생각하시나요? 자유롭게 댓글로 의견을 남겨주세요!👇",
     "이 이슈가 우리의 일상에 어떤 영향을 미칠까요? 여러분의 생각을 들려주세요!💬",
+    "더 깊이 알고 싶은 점이 있다면 언제든 댓글로 남겨주세요!📝",
     "이 뉴스에 공감하시나요? 주변에 알리고 싶다면 저장과 공유를 잊지 마세요!🔖"
 ]
 
-# 다이내믹 템플릿 (기계적인 반복 방지)
+# 다이내믹 템플릿
 INTROS = [
     "사실이 알려지며 전 세계적인 관심을 모으고 있습니다. 현재 이 사안은 주요 외신들 사이에서도 비중 있게 다뤄지며 다양한 해석을 낳고 있는 상황입니다.",
     "최근 글로벌 시장과 주요 업계의 시선이 이 소식에 집중되고 있습니다. 향후 판도를 바꿀 수 있는 핵심 이슈인 만큼 그 파장에 이목이 쏠립니다.",
@@ -75,10 +86,9 @@ def crawl_full_text(url):
         return None
 
 def get_processed_news():
-    print("\n🔍 [1단계: 뉴스 수집 및 매거진 템플릿 세팅]")
+    print("\n🔍 [1단계: 뉴스 수집 및 초강력 필터링]")
     api_key = os.getenv('NEWS_API_KEY')
     
-    # 우선순위: 경제(Business) 먼저, 그다음 과학(Science)
     urls = [
         f"https://newsapi.org/v2/top-headlines?country=us&category=business&pageSize=15&apiKey={api_key}",
         f"https://newsapi.org/v2/top-headlines?country=us&category=science&pageSize=10&apiKey={api_key}"
@@ -103,7 +113,7 @@ def get_processed_news():
             if len(ko_title) > 32:
                 split_title = re.split(r'[,:;]', ko_title)[0].strip()
                 if len(split_title) < 15:
-                    ko_title = " ".join(ko_title.split(' ')[:6]) # 6어절만 유지
+                    ko_title = " ".join(ko_title.split(' ')[:6]) 
                 else:
                     ko_title = split_title
             ko_title = ko_title.replace('...', '').strip()
@@ -111,11 +121,9 @@ def get_processed_news():
             ko_full_text = translator.translate(full_text[:2000])
             source_name = a['source']['name'] or "Global News"
             
-            # 본문 문장 분리 (유효한 문장만)
             sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
             if len(sentences) < 3: continue
 
-            # 2번 슬라이드에 띄울 '핵심 한 줄 요약' 추출 (보통 첫 문장이 가장 중요)
             core_message = sentences[0]
 
             intro_text = random.choice(INTROS)
@@ -124,21 +132,19 @@ def get_processed_news():
             hook_text = random.choice(HOOK_TAGS)
             engagement_text = random.choice(ENGAGEMENT_QUESTIONS)
 
-            # 캡션(게시글) 조립
+            # 캡션 조립
             summary = f"📢 [{ko_title}]\n\n"
             summary += f"{intro_text}\n\n"
             body_text = ". ".join(sentences[0:3])
             summary += f"해당 사안의 구체적인 내용을 살펴보면, {body_text}. {trans_text}\n\n"
             conclusion_text = sentences[3] if len(sentences) > 3 else sentences[-1]
             summary += f"{conclusion_text}. {concl_text}\n\n"
-            
-            # 캡션 맨 마지막에 댓글 유도 질문 삽입
             summary += f"💡 Q. {engagement_text}"
 
             return {
                 'ko_title': ko_title, 
-                'core_message': core_message, # 2번 슬라이드 이미지에 합성할 핵심 문장
-                'hook_tag': hook_text,        # 1번 슬라이드 표지용 태그
+                'core_message': core_message, 
+                'hook_tag': hook_text,        
                 'summary_ko': summary, 
                 'image_url': a.get('urlToImage'), 
                 'source_name': source_name
@@ -148,9 +154,8 @@ def get_processed_news():
     return None
 
 def create_slides(article):
-    print("\n🎨 [2단계: 슬라이드 3장 제작 (인스타 피드 크기 최적화)]")
+    print("\n🎨 [2단계: 슬라이드 3장 제작 (인스타 피드 크기 최적화 1080x1080)]")
     
-    # [수정] 최종 이미지 크기 코드 수정: 인스타 피드 표준 1:1 비율
     width, height = 1080, 1080
     
     try:
@@ -159,71 +164,58 @@ def create_slides(article):
         orig_res.raise_for_status()
         raw_img = Image.open(orig_res.raw).convert('RGB')
     except:
-        # 이미지 로드 실패 시, 세련된 다크그레이 배경으로 대체
         raw_img = Image.new('RGB', (width, height), color=(35, 40, 45))
 
     font_path = "NanumSquareR.ttf"
     try:
         title_font = ImageFont.truetype(font_path, 65) 
-        hook_font = ImageFont.truetype(font_path, 35)    # 후킹 태그용 폰트
-        core_font = ImageFont.truetype(font_path, 40)    # 2번 슬라이드 본문용 폰트
+        hook_font = ImageFont.truetype(font_path, 35)   
+        core_font = ImageFont.truetype(font_path, 40)   
         id_font = ImageFont.truetype(font_path, 28)
         source_font = ImageFont.truetype(font_path, 22)
-        
-        # 3번장 심플 폰트
         cta_main_font = ImageFont.truetype(font_path, 55)
         cta_sub_font = ImageFont.truetype(font_path, 40)
     except:
         title_font = hook_font = core_font = id_font = source_font = cta_main_font = cta_sub_font = ImageFont.load_default()
 
-    # --- 1번 장: 타이틀 (후킹 태그 추가, 어둡게 조정) ---
+    # --- 1번 장: 타이틀 ---
     s1 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(radius=10))
-    s1 = ImageEnhance.Brightness(s1).enhance(0.35) # 글씨 가독성을 위해 조금 더 어둡게
+    s1 = ImageEnhance.Brightness(s1).enhance(0.35) 
     draw = ImageDraw.Draw(s1)
     
     draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra")
-    
-    # [수정] 상단 후킹 태그 (노란색으로 시선 강탈, 이모지 없음)
     draw.text((width//2, height//2 - 160), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor="mm")
     
-    # 메인 타이틀
     wrapped_title = textwrap.fill(article['ko_title'], width=14)
     draw.multiline_text((width//2, height//2 + 20), wrapped_title, fill=(255, 255, 255), font=title_font, anchor="mm", align="center", spacing=25)
-    
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
     s1.save("images/slide_0.png")
 
     # --- 2번 장: 하단 1/3만 어둡게 하고 뉴스 핵심 텍스트 삽입 ---
     s2_orig = raw_img.copy()
-    s2_orig.thumbnail((width - 80, height - 80), Image.Resampling.LANCZOS) # 사진을 조금 더 크게
+    s2_orig.thumbnail((width - 80, height - 80), Image.Resampling.LANCZOS) 
     s2 = Image.new('RGB', (width, height), color=(20, 20, 20))
-    s2.paste(s2_orig, ((width - s2_orig.size[0]) // 2, (height - s2_orig.size[1]) // 2 - 40)) # 살짝 위로 배치
+    s2.paste(s2_orig, ((width - s2_orig.size[0]) // 2, (height - s2_orig.size[1]) // 2 - 40)) 
     
     overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
     draw_overlay = ImageDraw.Draw(overlay)
     
-    # 하단 1/3 영역 반투명 블랙 박스 (y: 720 부터 1080 까지)
     box_top = int(height * 0.66)
     draw_overlay.rectangle([0, box_top, width, height], fill=(0, 0, 0, 210))
     
-    # 텍스트 이쁘게 줄바꿈 (모바일 가독성)
     wrapped_core = textwrap.fill(article['core_message'], width=24)
     draw_overlay.multiline_text((width//2, box_top + (height - box_top)//2), wrapped_core, fill=(255, 255, 255, 240), font=core_font, anchor="mm", align="center", spacing=15)
     
     s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
     s2.save("images/slide_1.png")
 
-    # --- 3번 장: 심플 화이트 배경 + 파스텔톤 텍스트 CTA ---
+    # --- 3번 장: 심플 화이트 배경 + 파스텔톤 CTA ---
     s3 = Image.new('RGB', (width, height), color=(255, 255, 255))
     draw_s3 = ImageDraw.Draw(s3)
     
     pastel_color = (120, 150, 180) 
-    
     draw_s3.text((width//2, 400), "오늘의 브리핑이 유익하셨나요?", fill=pastel_color, font=cta_main_font, anchor="mm")
-    
-    # [이모지 깨짐 해결] 심플하게 점(·) 기호로 교체
     draw_s3.text((width//2, 530), "좋아요  ·  댓글  ·  저장", fill=(180, 180, 180), font=cta_sub_font, anchor="mm")
-    
     draw_s3.text((width//2, 700), f"{INSTA_ID} 팔로우하기", fill=pastel_color, font=cta_sub_font, anchor="mm")
 
     s3.save("images/slide_2.png")
@@ -234,14 +226,12 @@ def upload_to_insta(summary_ko):
     print("\n📤 [3단계: 인스타그램 최종 게시]")
     access_token = os.getenv('INSTA_ACCESS_TOKEN')
     account_id = os.getenv('INSTA_USER_ID')
-    user_name = "bomhi" # 사용자님의 GitHub ID
-    repo_name = "insta-automation" # 사용자님의 저장소 이름
+    user_name = "bomhi" 
+    repo_name = "insta-automation" 
     
     container_ids = []
     for i in range(3):
         img_url = f"https://raw.githubusercontent.com/{user_name}/{repo_name}/main/images/slide_{i}.png?t={int(time.time())}"
-        
-        # Syntax Error 검증 완료
         res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
             'image_url': img_url, 
             'is_carousel_item': 'true', 

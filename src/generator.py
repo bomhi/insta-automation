@@ -240,13 +240,15 @@ def create_slides(article):
     return ["images/slide_0.png", "images/slide_1.png", "images/slide_2.png"]
 
 def upload_to_insta(summary_ko):
-    print("\n📤 [3단계: 인스타그램 최종 게시]")
+    print("\n📤 [3단계: 인스타그램 최종 게시 (보안 우회 모드)]")
     access_token = os.getenv('INSTA_ACCESS_TOKEN')
     account_id = os.getenv('INSTA_USER_ID')
-    user_name = "bomhi"
-    repo_name = "insta-automation"
+    user_name = "bomhi" 
+    repo_name = "insta-automation" 
     
     container_ids = []
+    
+    # 1. 개별 슬라이드 컨테이너 업로드 (불규칙한 대기 시간 적용)
     for i in range(3):
         img_url = f"https://raw.githubusercontent.com/{user_name}/{repo_name}/main/images/slide_{i}.png?t={int(time.time())}"
         res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
@@ -260,8 +262,14 @@ def upload_to_insta(summary_ko):
             print(f"✅ 슬라이드 {i} 업로드 준비 완료")
         else:
             print(f"❌ 슬라이드 {i} 오류: {res}")
-        time.sleep(10)
+            return # 컨테이너 생성 실패 시 멈춤 (비정상 게시 방지)
+            
+        # [핵심 방어]: 기계처럼 보이지 않도록 15초 ~ 30초 사이 랜덤하게 쉬기
+        sleep_time = random.randint(15, 30)
+        print(f"   🤖 보안 봇 우회를 위해 {sleep_time}초 대기 중...")
+        time.sleep(sleep_time)
 
+    # 2. 캐러셀(슬라이드 묶음) 생성
     carousel_res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
         'media_type': 'CAROUSEL', 
         'children': ','.join(container_ids),
@@ -270,15 +278,23 @@ def upload_to_insta(summary_ko):
     }).json()
     
     if 'id' in carousel_res:
-        print("⏳ 게시물 최종 승인 대기 중 (60초)...")
-        time.sleep(60)
-        requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media_publish", data={
+        # [핵심 방어]: 캐러셀 생성 후 검수 시간을 충분히 줌 (70~90초 랜덤)
+        final_sleep = random.randint(70, 90)
+        print(f"⏳ 게시물 최종 승인 대기 중 ({final_sleep}초)...")
+        time.sleep(final_sleep)
+        
+        # 3. 최종 퍼블리시
+        publish_res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media_publish", data={
             'creation_id': carousel_res['id'], 
             'access_token': access_token
-        })
-        print("🎉 인스타그램 업로드 완벽히 성공!")
+        }).json()
+        
+        if 'id' in publish_res:
+            print("🎉 인스타그램 업로드 완벽히 성공!")
+        else:
+            print(f"❌ 퍼블리시 실패: {publish_res}")
     else:
-        print(f"❌ 최종 게시 실패: {carousel_res}")
+        print(f"❌ 캐러셀 생성 실패: {carousel_res}")
 
 def main():
     if len(sys.argv) < 2: return

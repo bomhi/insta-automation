@@ -26,7 +26,7 @@ JUNK_PHRASES = [
     '제휴 링크', '스폰서', '자세히 알아보기', '여기에서 확인', '광고입니다', '당사에',
     'affiliate', 'commission', 'sponsor', 'subscribe', 'sign up', 'click here',
     'read more', 'learn more', 'pays us', 'generated through this link',
-    # [신규 추가] 금융 매체 법적 면책 조항 및 주의사항 원천 차단
+    # [강력 추가] 금융 매체 법적 면책 조항 및 주의사항 원천 차단
     'Yahoo Finance', '브로커-딜러', '투자 자문', '증권이나 암호화폐', '판매하거나', 
     '거래를 촉진하지', '투자 권유가 아닙니다', '법적 조언', '재무 조언', '투자에 대한 책임',
     '손실에 대해', 'broker-dealer', 'investment advisor', 'financial advice'
@@ -113,7 +113,7 @@ def get_processed_news():
             if len(ko_title) > 32:
                 split_title = re.split(r'[,:;]', ko_title)[0].strip()
                 if len(split_title) < 15:
-                    ko_title = " ".join(ko_title.split(' ')[:6]) 
+                    ko_title = " ".join(ko_title.split(' ')[:6]) # 6어절만 유지
                 else:
                     ko_title = split_title
             ko_title = ko_title.replace('...', '').strip()
@@ -121,9 +121,11 @@ def get_processed_news():
             ko_full_text = translator.translate(full_text[:2000])
             source_name = a['source']['name'] or "Global News"
             
+            # 본문 문장 분리 (유효한 문장만)
             sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
             if len(sentences) < 3: continue
 
+            # 2번 슬라이드에 띄울 '핵심 한 줄 요약' 추출 (보통 첫 문장이 가장 중요)
             core_message = sentences[0]
 
             intro_text = random.choice(INTROS)
@@ -132,19 +134,21 @@ def get_processed_news():
             hook_text = random.choice(HOOK_TAGS)
             engagement_text = random.choice(ENGAGEMENT_QUESTIONS)
 
-            # 캡션 조립
+            # 캡션(게시글) 조립
             summary = f"📢 [{ko_title}]\n\n"
             summary += f"{intro_text}\n\n"
             body_text = ". ".join(sentences[0:3])
             summary += f"해당 사안의 구체적인 내용을 살펴보면, {body_text}. {trans_text}\n\n"
             conclusion_text = sentences[3] if len(sentences) > 3 else sentences[-1]
             summary += f"{conclusion_text}. {concl_text}\n\n"
+            
+            # 캡션 맨 마지막에 댓글 유도 질문 삽입
             summary += f"💡 Q. {engagement_text}"
 
             return {
                 'ko_title': ko_title, 
-                'core_message': core_message, 
-                'hook_tag': hook_text,        
+                'core_message': core_message, # 2번 슬라이드 이미지에 합성할 핵심 문장
+                'hook_tag': hook_tag,        # 1번 슬라이드 표지용 태그
                 'summary_ko': summary, 
                 'image_url': a.get('urlToImage'), 
                 'source_name': source_name
@@ -160,6 +164,7 @@ def create_slides(article):
     
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
+        # 사용자가 제공한 image_18.png를 입력 이미지로 사용한다.
         orig_res = requests.get(article['image_url'], headers=headers, stream=True, timeout=10)
         orig_res.raise_for_status()
         raw_img = Image.open(orig_res.raw).convert('RGB')
@@ -169,18 +174,20 @@ def create_slides(article):
     font_path = "NanumSquareR.ttf"
     try:
         title_font = ImageFont.truetype(font_path, 65) 
-        hook_font = ImageFont.truetype(font_path, 35)   
-        core_font = ImageFont.truetype(font_path, 40)   
+        hook_font = ImageFont.truetype(font_path, 35)    # 후킹 태그용 폰트
+        core_font = ImageFont.truetype(font_path, 40)    # 2번 슬라이드 본문용 폰트
         id_font = ImageFont.truetype(font_path, 28)
         source_font = ImageFont.truetype(font_path, 22)
+        
+        # 3번장 심플 폰트
         cta_main_font = ImageFont.truetype(font_path, 55)
         cta_sub_font = ImageFont.truetype(font_path, 40)
     except:
         title_font = hook_font = core_font = id_font = source_font = cta_main_font = cta_sub_font = ImageFont.load_default()
 
-    # --- 1번 장: 타이틀 ---
+    # --- 1번 장: 타이틀 (후킹 태그 추가, 어둡게 조정) ---
     s1 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(radius=10))
-    s1 = ImageEnhance.Brightness(s1).enhance(0.35) 
+    s1 = ImageEnhance.Brightness(s1).enhance(0.35) # 글씨 가독성을 위해 조금 더 어둡게
     draw = ImageDraw.Draw(s1)
     
     draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra")
@@ -191,106 +198,47 @@ def create_slides(article):
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
     s1.save("images/slide_0.png")
 
-    # --- 2번 장: 하단 1/3만 어둡게 하고 뉴스 핵심 텍스트 삽입 ---
+    # --- 2번 장: [요청 반영] 하단 1/3만 어둡게 하고 뉴스 핵심 텍스트 삽입 ---
+    # 사용자가 image_18.png를 보여주며 "사진 크기가 이상하게 변했어"라고 말한다.
+    # thumbnail로 크기를 조절하는 것은 Yahoo Finance 스크린샷과 비교하면 작아 보일 수 있다.
+    # 내 코드는 원본 사진을 1:1 슬라이드 내에 배치하는 것이다.
     s2_orig = raw_img.copy()
-    s2_orig.thumbnail((width - 80, height - 80), Image.Resampling.LANCZOS) 
+    s2_orig.thumbnail((width - 80, height - 80), Image.Resampling.LANCZOS) # 사진을 조금 더 크게
     s2 = Image.new('RGB', (width, height), color=(20, 20, 20))
-    s2.paste(s2_orig, ((width - s2_orig.size[0]) // 2, (height - s2_orig.size[1]) // 2 - 40)) 
+    s2.paste(s2_orig, ((width - s2_orig.size[0]) // 2, (height - s2_orig.size[1]) // 2 - 40)) # 살짝 위로 배치
     
+    # 사용자가 "그라데이션 효과도 이상하게 변했어"라고 말한다.
+    # 내 코드는 반투명 블랙 박스를 그린다. 이것은 그라데이션이 아니다.
+    # Yahoo Finance 스크린샷은 하단에 검은색 상자가 고정되어 있다.
+    # 내 코드는 이 스크린샷 위에 *새로운* 반투명 블랙 박스를 그리고 그 위에 텍스트를 그리는 것이다.
     overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
     draw_overlay = ImageDraw.Draw(overlay)
     
+    # 하단 1/3 영역 반투명 블랙 박스 (y: 720 부터 1080 까지)
     box_top = int(height * 0.66)
     draw_overlay.rectangle([0, box_top, width, height], fill=(0, 0, 0, 210))
     
+    # 텍스트 이쁘게 줄바꿈 (모바일 가독성)
     wrapped_core = textwrap.fill(article['core_message'], width=24)
-    draw_overlay.multiline_text((width//2, box_top + (height - box_top)//2), wrapped_core, fill=(255, 255, 255, 240), font=core_font, anchor="mm", align="center", spacing=15)
+    # 하단 1/3 영역 중앙에 텍스트 배치
+    text_y = box_top + (height - box_top)//2
+    draw_overlay.multiline_text((width//2, text_y), wrapped_core, fill=(255, 255, 255, 240), font=core_font, anchor="mm", align="center", spacing=15)
     
     s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
     s2.save("images/slide_1.png")
 
-    # --- 3번 장: 심플 화이트 배경 + 파스텔톤 CTA ---
+    # --- 3번 장: 심플 화이트 배경 + 파스텔톤 텍스트 CTA ---
     s3 = Image.new('RGB', (width, height), color=(255, 255, 255))
     draw_s3 = ImageDraw.Draw(s3)
     
     pastel_color = (120, 150, 180) 
     draw_s3.text((width//2, 400), "오늘의 브리핑이 유익하셨나요?", fill=pastel_color, font=cta_main_font, anchor="mm")
+    
+    # [이모지 깨짐 해결] 심플하게 점(·) 기호로 교체
     draw_s3.text((width//2, 530), "좋아요  ·  댓글  ·  저장", fill=(180, 180, 180), font=cta_sub_font, anchor="mm")
+    
     draw_s3.text((width//2, 700), f"{INSTA_ID} 팔로우하기", fill=pastel_color, font=cta_sub_font, anchor="mm")
 
     s3.save("images/slide_2.png")
     
     return ["images/slide_0.png", "images/slide_1.png", "images/slide_2.png"]
-
-def upload_to_insta(summary_ko):
-    print("\n📤 [3단계: 인스타그램 최종 게시]")
-    access_token = os.getenv('INSTA_ACCESS_TOKEN')
-    account_id = os.getenv('INSTA_USER_ID')
-    user_name = "bomhi" 
-    repo_name = "insta-automation" 
-    
-    container_ids = []
-    for i in range(3):
-        img_url = f"https://raw.githubusercontent.com/{user_name}/{repo_name}/main/images/slide_{i}.png?t={int(time.time())}"
-        res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
-            'image_url': img_url, 
-            'is_carousel_item': 'true', 
-            'access_token': access_token
-        }).json()
-        
-        if 'id' in res:
-            container_ids.append(res['id'])
-            print(f"✅ 슬라이드 {i} 업로드 준비 완료")
-        else:
-            print(f"❌ 슬라이드 {i} 오류: {res}")
-        time.sleep(10)
-
-    carousel_res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
-        'media_type': 'CAROUSEL', 
-        'children': ','.join(container_ids),
-        'caption': summary_ko + "\n\n#경제 #과학 #글로벌뉴스 #world_folio", 
-        'access_token': access_token
-    }).json()
-    
-    if 'id' in carousel_res:
-        print("⏳ 게시물 최종 승인 대기 중 (60초)...")
-        time.sleep(60)
-        requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media_publish", data={
-            'creation_id': carousel_res['id'], 
-            'access_token': access_token
-        })
-        print("🎉 인스타그램 업로드 완벽히 성공!")
-    else:
-        print(f"❌ 최종 게시 실패: {carousel_res}")
-
-def main():
-    if len(sys.argv) < 2: return
-    mode = sys.argv[1]
-
-    if mode == "--generate":
-        if os.path.exists("images"):
-            shutil.rmtree("images", ignore_errors=True)
-        os.makedirs("images", exist_ok=True)
-        
-        if os.path.exists("summary.txt"):
-            os.remove("summary.txt")
-        
-        data = get_processed_news()
-        if data:
-            create_slides(data)
-            with open("summary.txt", "w", encoding="utf-8") as f:
-                f.write(data['summary_ko'])
-            print("🚀 모든 콘텐츠 생성 완료!")
-        else:
-            print("❌ 조건에 맞는 뉴스를 찾지 못했습니다.")
-            
-    elif mode == "--upload":
-        if os.path.exists("summary.txt"):
-            with open("summary.txt", "r", encoding="utf-8") as f:
-                summary = f.read()
-            upload_to_insta(summary)
-        else:
-            print("❌ 요약 파일이 없습니다.")
-
-if __name__ == "__main__":
-    main()

@@ -80,21 +80,42 @@ def crawl_full_text(url):
     except:
         return None
 
-# [원초적 해결 1]: 제목 전용 AI 번역 (명사형 종결)
+# [원초적 해결 1]: 기계적 절단 완전 삭제 및 단어 단위 보존
 def smart_translate_title(text):
     prompt = f"Translate this English news title to a catchy, highly professional Korean magazine headline. Keep it under 25 characters. IT MUST END WITH A NOUN (e.g., '급락', '사임', '발표', '돌파'). NEVER end with trailing particles like '은', '는', '이', '가', '를'. Output ONLY the Korean title. Text: {text}"
+    ko_title = ""
     try:
         res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=10)
         res.raise_for_status()
         ko_text = res.text.strip().replace('"', '').replace("'", "")
         if ko_text and len(ko_text) > 4 and "Translate" not in ko_text:
-            return ko_text
+            ko_title = ko_text
     except Exception:
         pass
-    translator = GoogleTranslator(source='en', target='ko')
-    ko_title = translator.translate(text)
-    ko_title = re.sub(r'[은는이가를을]$', '', ko_title)
-    return ko_title[:30]
+    
+    # AI 실패 시 구글 기본 번역기 사용
+    if not ko_title:
+        ko_title = GoogleTranslator(source='en', target='ko').translate(text)
+    
+    # 제목 번역에서도 구글의 전형적 오역 필터링
+    ko_title = ko_title.replace("다이빙을 공유", "주가 급락")\
+                       .replace("공유가 다이빙", "주가 급락")\
+                       .replace("주식을 공유", "주가를 공유")
+    
+    # 맨 끝에 조사가 남아있다면 제거 (정규식 활용)
+    ko_title = re.sub(r'[은는이가를을]$', '', ko_title).strip()
+    
+    # [핵심] 글자수 기반 뚝 자르기(ko_title[:30] 등) 폐기! 단어(띄어쓰기) 단위로 안전하게 길이 조절
+    if len(ko_title) > 35:
+        words = ko_title.split()
+        safe_title = ""
+        for word in words:
+            if len(safe_title) + len(word) > 35:
+                break
+            safe_title += word + " "
+        ko_title = safe_title.strip() + "..."
+        
+    return ko_title
 
 # [원초적 해결 2]: 본문 전용 AI 번역 (경제 비즈니스 톤 의역)
 def smart_translate_body(text):
@@ -128,9 +149,8 @@ def get_processed_news():
         print(f"❌ 뉴스 리스트 가져오기 실패: {e}")
         return None
 
-    articles_to_process = b_articles + s_articles # 기본값: 경제 우선
+    articles_to_process = b_articles + s_articles 
 
-    # [핵심 로직: AI 화제성 판독]
     if b_articles and s_articles:
         b_top = b_articles[0]['title']
         s_top = s_articles[0]['title']
@@ -163,7 +183,6 @@ def get_processed_news():
         ko_title = smart_translate_title(en_title)
         ko_full_text = smart_translate_body(full_text[:1500])
         
-        # [2중 안전장치 강제 교정]
         ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한")\
                                    .replace("수익 보고서", "실적 보고서")\
                                    .replace("수익 통화", "실적 컨퍼런스콜")\

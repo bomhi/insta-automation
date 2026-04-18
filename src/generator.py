@@ -80,95 +80,131 @@ def crawl_full_text(url):
     except:
         return None
 
-# [원초적 해결책]: 기계적 번역이 아닌 문맥 기반 AI 전문 번역 도입
-def smart_translate(text):
-    """단순 직역을 방지하고, 경제/비즈니스 문맥에 맞게 AI가 의역합니다."""
-    prompt = f"Translate the following English financial news into highly professional, natural Korean journalistic style. Correctly interpret financial idioms (e.g., 'shares dive' as 주가 급락, 'earnings' as 실적). Do not use literal word-for-word translation. Output ONLY the Korean text. Text: {text}"
+# [원초적 해결 1]: 제목 전용 AI 번역 (명사형 종결)
+def smart_translate_title(text):
+    prompt = f"Translate this English news title to a catchy, highly professional Korean magazine headline. Keep it under 25 characters. IT MUST END WITH A NOUN (e.g., '급락', '사임', '발표', '돌파'). NEVER end with trailing particles like '은', '는', '이', '가', '를'. Output ONLY the Korean title. Text: {text}"
+    try:
+        res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=10)
+        res.raise_for_status()
+        ko_text = res.text.strip().replace('"', '').replace("'", "")
+        if ko_text and len(ko_text) > 4 and "Translate" not in ko_text:
+            return ko_text
+    except Exception:
+        pass
+    translator = GoogleTranslator(source='en', target='ko')
+    ko_title = translator.translate(text)
+    ko_title = re.sub(r'[은는이가를을]$', '', ko_title)
+    return ko_title[:30]
+
+# [원초적 해결 2]: 본문 전용 AI 번역 (경제 비즈니스 톤 의역)
+def smart_translate_body(text):
+    prompt = f"Translate this financial/tech news into a professional Korean journalistic style. Accurately translate business idioms: 'earnings letter/report' -> '실적 발표 서한', 'shares dive/plunge' -> '주가 급락', 'shares soar' -> '주가 폭등'. Do not use literal word-for-word translation. Output ONLY the Korean text. Text: {text}"
     try:
         res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=15)
         res.raise_for_status()
         ko_text = res.text.strip()
-        # 오류로 영어가 그대로 나오거나 너무 짧으면 예외 처리
-        if ko_text and len(ko_text) > 5 and "Translate" not in ko_text:
+        if ko_text and len(ko_text) > 10 and "Translate" not in ko_text:
             return ko_text
-    except Exception as e:
-        print(f"⚠️ AI 번역 지연, 기본 번역기로 전환합니다: {e}")
-    
-    # AI 번역 실패 시에만 안전장치로 구글 번역기 사용
-    translator = GoogleTranslator(source='en', target='ko')
-    return translator.translate(text)
+    except Exception:
+        pass
+    return GoogleTranslator(source='en', target='ko').translate(text)
 
 def get_processed_news():
-    print("\n🔍 [1단계: 뉴스 수집 및 AI 문맥 번역 진행 중...]")
+    print("\n🔍 [1단계: AI 편집장의 데일리 화제성 판독 및 수집]")
     api_key = os.getenv('NEWS_API_KEY')
     
-    urls = [
-        f"https://newsapi.org/v2/top-headlines?country=us&category=business&pageSize=15&apiKey={api_key}",
-        f"https://newsapi.org/v2/top-headlines?country=us&category=science&pageSize=10&apiKey={api_key}"
-    ]
+    b_url = f"https://newsapi.org/v2/top-headlines?country=us&category=business&pageSize=10&apiKey={api_key}"
+    s_url = f"https://newsapi.org/v2/top-headlines?country=us&category=science&pageSize=10&apiKey={api_key}"
     
-    articles = []
+    b_articles = []
+    s_articles = []
     try:
-        for url in urls:
-            res = requests.get(url)
-            res.raise_for_status()
-            data = res.json()
-            articles.extend([a for a in data.get('articles', []) if a.get('urlToImage') and a.get('url')])
-            
-        for a in articles:
-            full_text = crawl_full_text(a['url'])
-            if not full_text or len(full_text) < 300: continue
-
-            en_title = a['title'].split(' - ')[0]
-            
-            # [적용]: 구글 번역기 대신 AI 전문 번역 엔진 호출
-            ko_title = smart_translate(en_title)
-            
-            if len(ko_title) > 32:
-                split_title = re.split(r'[,:;]', ko_title)[0].strip()
-                if len(split_title) < 15:
-                    ko_title = " ".join(ko_title.split(' ')[:6])
-                else:
-                    ko_title = split_title
-            ko_title = ko_title.replace('...', '').strip()
-
-            # 본문 역시 AI를 통해 문맥에 맞게 번역 (최대 1500자로 잘라서 처리 속도 및 정확성 확보)
-            ko_full_text = smart_translate(full_text[:1500])
-            source_name = a['source']['name'] or "Global News"
-            
-            sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
-            if len(sentences) < 3: continue
-
-            core_message = sentences[0]
-
-            intro_text = random.choice(INTROS)
-            trans_text = random.choice(TRANSITIONS)
-            concl_text = random.choice(CONCLUSIONS)
-            hook_text = random.choice(HOOK_TAGS)
-            engagement_text = random.choice(ENGAGEMENT_QUESTIONS)
-
-            summary = f"📢 [{ko_title}]\n\n"
-            summary += f"{intro_text}\n\n"
-            body_text = ". ".join(sentences[0:3])
-            summary += f"해당 사안의 구체적인 내용을 살펴보면, {body_text}. {trans_text}\n\n"
-            conclusion_text = sentences[3] if len(sentences) > 3 else sentences[-1]
-            summary += f"{conclusion_text}. {concl_text}\n\n"
-            summary += f"💡 Q. {engagement_text}"
-
-            return {
-                'ko_title': ko_title, 
-                'core_message': core_message, 
-                'hook_tag': hook_text,        
-                'summary_ko': summary, 
-                'image_url': a.get('urlToImage'), 
-                'source_name': source_name
-            }
+        b_res = requests.get(b_url).json()
+        b_articles = [a for a in b_res.get('articles', []) if a.get('urlToImage') and a.get('url')]
+        
+        s_res = requests.get(s_url).json()
+        s_articles = [a for a in s_res.get('articles', []) if a.get('urlToImage') and a.get('url')]
     except Exception as e:
-        print(f"❌ 뉴스 수집 실패: {e}")
+        print(f"❌ 뉴스 리스트 가져오기 실패: {e}")
+        return None
+
+    articles_to_process = b_articles + s_articles # 기본값: 경제 우선
+
+    # [핵심 로직: AI 화제성 판독]
+    if b_articles and s_articles:
+        b_top = b_articles[0]['title']
+        s_top = s_articles[0]['title']
+        print(f"\n🥊 [오늘의 매치업]\n경제 1위: {b_top}\n과학 1위: {s_top}")
+        
+        prompt = f"As a global news editor, compare these two headlines. 1: '{b_top}'. 2: '{s_top}'. Which one has a higher global impact, urgency, and trendiness today? Reply strictly with a single digit: '1' or '2'. No other words."
+        try:
+            res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=10)
+            choice = res.text.strip()
+            
+            if '2' in choice and '1' not in choice:
+                print("\n🌟 [AI 편집장 결정] 오늘 더 핫한 이슈는 '과학/IT' 입니다! 과학 뉴스를 메인으로 진행합니다.")
+                articles_to_process = s_articles + b_articles
+            elif choice == '2':
+                print("\n🌟 [AI 편집장 결정] 오늘 더 핫한 이슈는 '과학/IT' 입니다! 과학 뉴스를 메인으로 진행합니다.")
+                articles_to_process = s_articles + b_articles
+            else:
+                print("\n📊 [AI 편집장 결정] 오늘 더 무거운 이슈는 '경제/비즈니스' 입니다! 경제 뉴스를 메인으로 진행합니다.")
+                articles_to_process = b_articles + s_articles
+        except Exception:
+            print("\n⚠️ AI 편집장 연결 지연, 기본(경제) 우선순위로 진행합니다.")
+            articles_to_process = b_articles + s_articles
+
+    for a in articles_to_process:
+        full_text = crawl_full_text(a['url'])
+        if not full_text or len(full_text) < 300: continue
+
+        en_title = a['title'].split(' - ')[0]
+        
+        ko_title = smart_translate_title(en_title)
+        ko_full_text = smart_translate_body(full_text[:1500])
+        
+        # [2중 안전장치 강제 교정]
+        ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한")\
+                                   .replace("수익 보고서", "실적 보고서")\
+                                   .replace("수익 통화", "실적 컨퍼런스콜")\
+                                   .replace("다이빙을 공유", "주가가 급락")\
+                                   .replace("공유가 다이빙", "주가가 급락")\
+                                   .replace("주식을 공유", "주가를 공유")
+
+        source_name = a['source']['name'] or "Global News"
+        
+        sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
+        if len(sentences) < 3: continue
+
+        core_message = sentences[0]
+
+        intro_text = random.choice(INTROS)
+        trans_text = random.choice(TRANSITIONS)
+        concl_text = random.choice(CONCLUSIONS)
+        hook_text = random.choice(HOOK_TAGS)
+        engagement_text = random.choice(ENGAGEMENT_QUESTIONS)
+
+        summary = f"📢 [{ko_title}]\n\n"
+        summary += f"{intro_text}\n\n"
+        body_text = ". ".join(sentences[0:3])
+        summary += f"해당 사안의 구체적인 내용을 살펴보면, {body_text}. {trans_text}\n\n"
+        conclusion_text = sentences[3] if len(sentences) > 3 else sentences[-1]
+        summary += f"{conclusion_text}. {concl_text}\n\n"
+        summary += f"💡 Q. {engagement_text}"
+
+        return {
+            'ko_title': ko_title, 
+            'core_message': core_message, 
+            'hook_tag': hook_text,        
+            'summary_ko': summary, 
+            'image_url': a.get('urlToImage'), 
+            'source_name': source_name
+        }
+        
     return None
 
 def create_slides(article):
-    print("\n🎨 [2단계: 슬라이드 3장 제작 (풀스크린 매거진 스타일)]")
+    print("\n🎨 [2단계: 슬라이드 3장 제작 (풀스크린 매거진 스타일 1080x1080)]")
     
     width, height = 1080, 1080
     
@@ -217,7 +253,6 @@ def create_slides(article):
         draw_overlay.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
     
     wrapped_core = textwrap.fill(article['core_message'], width=24)
-    
     text_y = int(height * 0.75)
     draw_overlay.multiline_text((width//2, text_y), wrapped_core, fill=(255, 255, 255, 250), font=core_font, anchor="mm", align="center", spacing=15)
     

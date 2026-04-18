@@ -80,54 +80,56 @@ def crawl_full_text(url):
     except:
         return None
 
-# [원초적 해결 1]: 기계적 절단 완전 삭제 및 단어 단위 보존
+# [원초적 해결 1 - 진화]: 단순 번역을 넘어선 '핵심 키워드 카피라이팅' 엔진
 def smart_translate_title(text):
-    prompt = f"Translate this English news title to a catchy, highly professional Korean magazine headline. Keep it under 25 characters. IT MUST END WITH A NOUN (e.g., '급락', '사임', '발표', '돌파'). NEVER end with trailing particles like '은', '는', '이', '가', '를'. Output ONLY the Korean title. Text: {text}"
-    ko_title = ""
-    try:
-        res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=10)
-        res.raise_for_status()
-        ko_text = res.text.strip().replace('"', '').replace("'", "")
-        if ko_text and len(ko_text) > 4 and "Translate" not in ko_text:
-            ko_title = ko_text
-    except Exception:
-        pass
+    # 인스타 표지에 맞게 자극적이고 짧은 명사형 키워드만 뽑아내도록 명령
+    prompt = f"As an expert Instagram news editor, summarize this English headline into a highly clickable, punchy Korean keyword headline. Rule 1: MAXIMUM 15 characters. Rule 2: DO NOT translate the whole sentence. Extract only the most shocking/important keywords. Rule 3: Must end with a noun (e.g., '급락', '사임', '발표', '혁신'). Output ONLY the Korean text. Text: {text}"
     
-    # AI 실패 시 구글 기본 번역기 사용
+    ko_title = ""
+    # 통신 불량 대비 2회 재시도 (최대한 구글 번역기 폴백을 막기 위함)
+    for _ in range(2):
+        try:
+            res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=12)
+            res.raise_for_status()
+            # 마크다운 특수문자 완벽 제거
+            ko_text = re.sub(r'[*"\'\[\]]', '', res.text.strip())
+            if ko_text and len(ko_text) >= 2 and "Translate" not in ko_text and "Rule" not in ko_text:
+                ko_title = ko_text
+                break
+        except Exception:
+            time.sleep(1)
+            pass
+    
+    # 2번의 시도에도 실패했을 경우 최후의 방어선 (Google 번역기 + 강제 요약)
     if not ko_title:
         ko_title = GoogleTranslator(source='en', target='ko').translate(text)
-    
-    # 제목 번역에서도 구글의 전형적 오역 필터링
-    ko_title = ko_title.replace("다이빙을 공유", "주가 급락")\
-                       .replace("공유가 다이빙", "주가 급락")\
-                       .replace("주식을 공유", "주가를 공유")
-    
-    # 맨 끝에 조사가 남아있다면 제거 (정규식 활용)
-    ko_title = re.sub(r'[은는이가를을]$', '', ko_title).strip()
-    
-    # [핵심] 글자수 기반 뚝 자르기(ko_title[:30] 등) 폐기! 단어(띄어쓰기) 단위로 안전하게 길이 조절
-    if len(ko_title) > 35:
-        words = ko_title.split()
-        safe_title = ""
-        for word in words:
-            if len(safe_title) + len(word) > 35:
-                break
-            safe_title += word + " "
-        ko_title = safe_title.strip() + "..."
+        ko_title = ko_title.replace("다이빙을 공유", "주가 급락")\
+                           .replace("공유가 다이빙", "주가 급락")\
+                           .replace("주식을 공유", "주가 공유")\
+                           .replace("물러나면서", "사임")
         
+        # 문장이 너무 길면 강제로 핵심이 될만한 앞 3단어만 자르고 끝에 명사화
+        words = ko_title.split()
+        if len(words) > 3:
+            ko_title = " ".join(words[:3]) + "..."
+            
+    # 끝자리 조사 제거
+    ko_title = re.sub(r'[은는이가를을]$', '', ko_title).strip()
     return ko_title
 
 # [원초적 해결 2]: 본문 전용 AI 번역 (경제 비즈니스 톤 의역)
 def smart_translate_body(text):
     prompt = f"Translate this financial/tech news into a professional Korean journalistic style. Accurately translate business idioms: 'earnings letter/report' -> '실적 발표 서한', 'shares dive/plunge' -> '주가 급락', 'shares soar' -> '주가 폭등'. Do not use literal word-for-word translation. Output ONLY the Korean text. Text: {text}"
-    try:
-        res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=15)
-        res.raise_for_status()
-        ko_text = res.text.strip()
-        if ko_text and len(ko_text) > 10 and "Translate" not in ko_text:
-            return ko_text
-    except Exception:
-        pass
+    for _ in range(2):
+        try:
+            res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=15)
+            res.raise_for_status()
+            ko_text = res.text.strip()
+            if ko_text and len(ko_text) > 10 and "Translate" not in ko_text:
+                return ko_text
+        except Exception:
+            time.sleep(1)
+            pass
     return GoogleTranslator(source='en', target='ko').translate(text)
 
 def get_processed_news():
@@ -180,15 +182,16 @@ def get_processed_news():
 
         en_title = a['title'].split(' - ')[0]
         
+        # AI가 핵심 단어만 뽑아서 짧게 리턴
         ko_title = smart_translate_title(en_title)
         ko_full_text = smart_translate_body(full_text[:1500])
         
         ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한")\
                                    .replace("수익 보고서", "실적 보고서")\
                                    .replace("수익 통화", "실적 컨퍼런스콜")\
-                                   .replace("다이빙을 공유", "주가가 급락")\
-                                   .replace("공유가 다이빙", "주가가 급락")\
-                                   .replace("주식을 공유", "주가를 공유")
+                                   .replace("다이빙을 공유", "주가 급락")\
+                                   .replace("공유가 다이빙", "주가 급락")\
+                                   .replace("주식을 공유", "주가 공유")
 
         source_name = a['source']['name'] or "Global News"
         
@@ -237,7 +240,8 @@ def create_slides(article):
 
     font_path = "NanumSquareR.ttf"
     try:
-        title_font = ImageFont.truetype(font_path, 65) 
+        # 타이틀이 간결해졌으므로 크기를 조금 더 키워 임팩트를 줍니다
+        title_font = ImageFont.truetype(font_path, 80) 
         hook_font = ImageFont.truetype(font_path, 35)   
         core_font = ImageFont.truetype(font_path, 40)   
         id_font = ImageFont.truetype(font_path, 28)
@@ -255,7 +259,8 @@ def create_slides(article):
     draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra")
     draw.text((width//2, height//2 - 160), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor="mm")
     
-    wrapped_title = textwrap.fill(article['ko_title'], width=14)
+    # 간결해진 타이틀 배치 (최대 10글자씩 줄바꿈하여 시원시원하게 출력)
+    wrapped_title = textwrap.fill(article['ko_title'], width=10)
     draw.multiline_text((width//2, height//2 + 20), wrapped_title, fill=(255, 255, 255), font=title_font, anchor="mm", align="center", spacing=25)
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
     s1.save("images/slide_0.png")

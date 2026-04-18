@@ -46,20 +46,43 @@ ENGAGEMENT_QUESTIONS = [
     "이 뉴스에 공감하시나요? 주변에 알리고 싶다면 저장과 공유를 잊지 마세요!🔖"
 ]
 
+# [업데이트] 다채로운 매거진 도입부 풀(Pool) 대폭 확장
 INTROS = [
-    "사실이 알려지며 전 세계적인 관심을 모으고 있습니다. 현재 이 사안은 주요 외신들 사이에서도 비중 있게 다뤄지며 다양한 해석을 낳고 있는 상황입니다.",
-    "최근 글로벌 시장과 주요 업계의 시선이 이 소식에 집중되고 있습니다. 향후 판도를 바꿀 수 있는 핵심 이슈인 만큼 그 파장에 이목이 쏠립니다.",
-    "해당 소식이 전해지면서 전문가들 사이에서 뜨거운 화두로 떠오르고 있습니다. 새로운 트렌드의 변곡점이 될지 시장의 관심이 뜨겁습니다."
+    "최근 글로벌 시장을 뒤흔들며 전 세계의 이목이 집중되고 있는 핵심 이슈입니다.",
+    "해당 소식이 전해지면서 관련 업계와 글로벌 투자자들 사이에서 뜨거운 화두로 떠올랐습니다.",
+    "현재 주요 외신들 사이에서도 앞다투어 비중 있게 다뤄지며 향후 파장에 대한 다양한 해석이 나오고 있습니다.",
+    "단순한 해프닝을 넘어 글로벌 트렌드의 새로운 변곡점이 될 수 있다는 분석이 제기되고 있습니다.",
+    "시장의 예상을 뛰어넘는 전개로 인해 전 세계적인 관심이 쏠리고 있는 상황입니다.",
+    "최근 불거진 이 사안이 국제 경제와 산업 전반에 적지 않은 파장을 예고하며 주목받고 있습니다.",
+    "기존의 판도를 바꿀 수 있는 중대한 소식인 만큼, 글로벌 언론들도 이를 예의주시하고 있습니다."
 ]
+
+# [업데이트] 반복되던 "구체적인 내용을 살펴보면"을 대체할 브릿지 문구들
+BODY_PREFIXES = [
+    "구체적인 내용을 살펴보면,",
+    "이번 사안의 핵심을 요약하자면,",
+    "현지 주요 보도와 전문가들의 분석에 따르면,",
+    "자세한 내막을 들여다보면,",
+    "시장이 가장 크게 주목하는 부분을 짚어보면,",
+    "업계 관계자들의 전언에 따르면,"
+]
+
 TRANSITIONS = [
-    "특히 이번 과정에서 나타난 특징적인 요소들은 기존의 흐름과는 전혀 다른 양상을 보이고 있어 주목할 만합니다.",
-    "무엇보다 이번 사안의 이면에 자리한 전략적 의도와 시장의 즉각적인 반응이 향후 흐름을 가늠할 중요한 잣대가 될 것으로 보입니다.",
-    "이러한 움직임은 단순한 해프닝을 넘어, 급변하는 글로벌 정세 속에서 새로운 주도권을 쥐기 위한 발빠른 행보로 풀이됩니다."
+    "특히 이번 과정에서 나타난 특징적인 요소들은 기존의 흐름과는 완전히 다른 양상을 보이고 있어 주목할 만합니다.",
+    "무엇보다 이면에 자리한 전략적 의도와 시장의 즉각적인 반응이 향후 흐름을 가늠할 중요한 잣대가 될 것으로 보입니다.",
+    "이러한 움직임은 단순한 소식을 넘어, 새로운 주도권을 쥐기 위한 글로벌 기업들의 발빠른 행보로 풀이됩니다.",
+    "전문가들은 이 같은 변화가 관련 산업 및 경제 전반에 새로운 연쇄 작용을 촉발할 가능성이 높다고 분석합니다.",
+    "이로 인해 향후 시장의 불확실성이 커질 수 있다는 우려와 새로운 기회가 될 것이란 전망이 엇갈리고 있습니다.",
+    "주목할 점은 이번 사안이 단기적인 이슈에 그치지 않고 장기적인 지각 변동을 일으킬 수 있다는 것입니다."
 ]
+
 CONCLUSIONS = [
-    "결국 단기적인 성과보다는 고유의 경쟁력과 지속 가능성을 확보하는 것이 향후 가장 중요한 과제가 될 것으로 보입니다.",
+    "결국 단기적인 성과보다는 고유의 경쟁력과 지속 가능성을 확보하는 것이 향후 가장 중요한 과제가 될 전망입니다.",
     "앞으로의 구체적인 대응 방식과 후속 조치가 어떤 실질적 결과를 낳을지 전 세계가 예의주시해야 할 시점입니다.",
-    "기대와 우려가 교차하는 가운데, 향후 뚜렷한 모멘텀을 만들어내며 시장에 안착할 수 있을지가 핵심 관건입니다."
+    "기대와 우려가 교차하는 가운데, 시장에 어떻게 안착할 수 있을지가 앞으로의 핵심 관건입니다.",
+    "결과적으로 이번 이슈는 다가올 거대한 변화의 신호탄일 수 있으며, 철저한 대비와 전략적 접근이 필요해 보입니다.",
+    "향후 뚜렷한 모멘텀을 만들어내며 긍정적인 전환점을 맞이할 수 있을지 귀추가 주목됩니다.",
+    "시장의 변동성이 커지는 만큼, 관련 동향을 지속적으로 모니터링하며 리스크를 관리하는 것이 무엇보다 중요해 보입니다."
 ]
 
 def is_valid_paragraph(text):
@@ -80,18 +103,15 @@ def crawl_full_text(url):
     except:
         return None
 
-# [원초적 해결 1 - 진화]: 단순 번역을 넘어선 '핵심 키워드 카피라이팅' 엔진
+# [원초적 해결 1]: 무식한 단어 자르기 삭제 & 스마트 명사화 도입
 def smart_translate_title(text):
-    # 인스타 표지에 맞게 자극적이고 짧은 명사형 키워드만 뽑아내도록 명령
-    prompt = f"As an expert Instagram news editor, summarize this English headline into a highly clickable, punchy Korean keyword headline. Rule 1: MAXIMUM 15 characters. Rule 2: DO NOT translate the whole sentence. Extract only the most shocking/important keywords. Rule 3: Must end with a noun (e.g., '급락', '사임', '발표', '혁신'). Output ONLY the Korean text. Text: {text}"
+    prompt = f"As an expert Instagram news editor, summarize this English headline into a highly clickable, punchy Korean keyword headline. Rule 1: MAXIMUM 20 characters. Rule 2: DO NOT translate the whole sentence. Extract only the most shocking/important keywords. Rule 3: Must end with a noun (e.g., '급락', '경고', '발표', '혁신', '우려'). DO NOT end with verbs. Output ONLY the Korean text. Text: {text}"
     
     ko_title = ""
-    # 통신 불량 대비 2회 재시도 (최대한 구글 번역기 폴백을 막기 위함)
     for _ in range(2):
         try:
             res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=12)
             res.raise_for_status()
-            # 마크다운 특수문자 완벽 제거
             ko_text = re.sub(r'[*"\'\[\]]', '', res.text.strip())
             if ko_text and len(ko_text) >= 2 and "Translate" not in ko_text and "Rule" not in ko_text:
                 ko_title = ko_text
@@ -100,24 +120,18 @@ def smart_translate_title(text):
             time.sleep(1)
             pass
     
-    # 2번의 시도에도 실패했을 경우 최후의 방어선 (Google 번역기 + 강제 요약)
+    # 구글 번역기 폴백 (AI 통신 실패 시)
     if not ko_title:
         ko_title = GoogleTranslator(source='en', target='ko').translate(text)
-        ko_title = ko_title.replace("다이빙을 공유", "주가 급락")\
-                           .replace("공유가 다이빙", "주가 급락")\
-                           .replace("주식을 공유", "주가 공유")\
-                           .replace("물러나면서", "사임")
+        ko_title = ko_title.replace("다이빙을 공유", "주가 급락").replace("공유가 다이빙", "주가 급락").replace("물러나면서", "사임")
         
-        # 문장이 너무 길면 강제로 핵심이 될만한 앞 3단어만 자르고 끝에 명사화
-        words = ko_title.split()
-        if len(words) > 3:
-            ko_title = " ".join(words[:3]) + "..."
+        # [핵심] 어색한 자르기 대신, 번역된 문장의 끝부분(동사/조사)을 깔끔하게 도려내어 명사형으로 만듭니다.
+        ko_title = re.sub(r'(했다|합니다|하다|했습니다|할 것|예정이다|된다|된다고|밝혔다|보인다|경고했다|주장했다|말했다)$', '', ko_title).strip()
             
-    # 끝자리 조사 제거
-    ko_title = re.sub(r'[은는이가를을]$', '', ko_title).strip()
+    # 최종 조사 다듬기
+    ko_title = re.sub(r'[은는이가를을에의]$', '', ko_title).strip()
     return ko_title
 
-# [원초적 해결 2]: 본문 전용 AI 번역 (경제 비즈니스 톤 의역)
 def smart_translate_body(text):
     prompt = f"Translate this financial/tech news into a professional Korean journalistic style. Accurately translate business idioms: 'earnings letter/report' -> '실적 발표 서한', 'shares dive/plunge' -> '주가 급락', 'shares soar' -> '주가 폭등'. Do not use literal word-for-word translation. Output ONLY the Korean text. Text: {text}"
     for _ in range(2):
@@ -182,7 +196,6 @@ def get_processed_news():
 
         en_title = a['title'].split(' - ')[0]
         
-        # AI가 핵심 단어만 뽑아서 짧게 리턴
         ko_title = smart_translate_title(en_title)
         ko_full_text = smart_translate_body(full_text[:1500])
         
@@ -200,7 +213,9 @@ def get_processed_news():
 
         core_message = sentences[0]
 
+        # [다채로운 템플릿 조합]
         intro_text = random.choice(INTROS)
+        body_prefix = random.choice(BODY_PREFIXES)
         trans_text = random.choice(TRANSITIONS)
         concl_text = random.choice(CONCLUSIONS)
         hook_text = random.choice(HOOK_TAGS)
@@ -209,7 +224,8 @@ def get_processed_news():
         summary = f"📢 [{ko_title}]\n\n"
         summary += f"{intro_text}\n\n"
         body_text = ". ".join(sentences[0:3])
-        summary += f"해당 사안의 구체적인 내용을 살펴보면, {body_text}. {trans_text}\n\n"
+        # [수정] 고정되었던 '해당 사안의 구체적인 내용을 살펴보면,' 문구 랜덤화
+        summary += f"{body_prefix} {body_text}. {trans_text}\n\n"
         conclusion_text = sentences[3] if len(sentences) > 3 else sentences[-1]
         summary += f"{conclusion_text}. {concl_text}\n\n"
         summary += f"💡 Q. {engagement_text}"
@@ -240,7 +256,6 @@ def create_slides(article):
 
     font_path = "NanumSquareR.ttf"
     try:
-        # 타이틀이 간결해졌으므로 크기를 조금 더 키워 임팩트를 줍니다
         title_font = ImageFont.truetype(font_path, 80) 
         hook_font = ImageFont.truetype(font_path, 35)   
         core_font = ImageFont.truetype(font_path, 40)   
@@ -259,8 +274,8 @@ def create_slides(article):
     draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra")
     draw.text((width//2, height//2 - 160), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor="mm")
     
-    # 간결해진 타이틀 배치 (최대 10글자씩 줄바꿈하여 시원시원하게 출력)
-    wrapped_title = textwrap.fill(article['ko_title'], width=10)
+    # 텍스트 폭을 12로 살짝 넓혀서 시원하게 줄바꿈
+    wrapped_title = textwrap.fill(article['ko_title'], width=12)
     draw.multiline_text((width//2, height//2 + 20), wrapped_title, fill=(255, 255, 255), font=title_font, anchor="mm", align="center", spacing=25)
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
     s1.save("images/slide_0.png")

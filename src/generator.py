@@ -6,6 +6,7 @@ import textwrap
 import re
 import shutil
 import random 
+import urllib.parse
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from deep_translator import GoogleTranslator
@@ -14,7 +15,7 @@ from bs4 import BeautifulSoup
 # [설정]
 INSTA_ID = "@world_folio"
 
-# [초강력 필터링] 악성/광고성/보안/제휴/금융 면책조항 완벽 차단 리스트
+# [광고/보안/금융 면책조항 완벽 차단 리스트]
 JUNK_PHRASES = [
     'Ben이 스토리를', '받은편지함', '가입', '동의하는', '약관', '개인 정보', 
     'Insider', '뉴스레터', '클릭하면', 'Copyright', 'All rights reserved', '무료 기사',
@@ -79,8 +80,26 @@ def crawl_full_text(url):
     except:
         return None
 
+# [원초적 해결책]: 기계적 번역이 아닌 문맥 기반 AI 전문 번역 도입
+def smart_translate(text):
+    """단순 직역을 방지하고, 경제/비즈니스 문맥에 맞게 AI가 의역합니다."""
+    prompt = f"Translate the following English financial news into highly professional, natural Korean journalistic style. Correctly interpret financial idioms (e.g., 'shares dive' as 주가 급락, 'earnings' as 실적). Do not use literal word-for-word translation. Output ONLY the Korean text. Text: {text}"
+    try:
+        res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=15)
+        res.raise_for_status()
+        ko_text = res.text.strip()
+        # 오류로 영어가 그대로 나오거나 너무 짧으면 예외 처리
+        if ko_text and len(ko_text) > 5 and "Translate" not in ko_text:
+            return ko_text
+    except Exception as e:
+        print(f"⚠️ AI 번역 지연, 기본 번역기로 전환합니다: {e}")
+    
+    # AI 번역 실패 시에만 안전장치로 구글 번역기 사용
+    translator = GoogleTranslator(source='en', target='ko')
+    return translator.translate(text)
+
 def get_processed_news():
-    print("\n🔍 [1단계: 뉴스 수집 및 초강력 필터링]")
+    print("\n🔍 [1단계: 뉴스 수집 및 AI 문맥 번역 진행 중...]")
     api_key = os.getenv('NEWS_API_KEY')
     
     urls = [
@@ -100,9 +119,10 @@ def get_processed_news():
             full_text = crawl_full_text(a['url'])
             if not full_text or len(full_text) < 300: continue
 
-            translator = GoogleTranslator(source='en', target='ko')
             en_title = a['title'].split(' - ')[0]
-            ko_title = translator.translate(en_title)
+            
+            # [적용]: 구글 번역기 대신 AI 전문 번역 엔진 호출
+            ko_title = smart_translate(en_title)
             
             if len(ko_title) > 32:
                 split_title = re.split(r'[,:;]', ko_title)[0].strip()
@@ -112,7 +132,8 @@ def get_processed_news():
                     ko_title = split_title
             ko_title = ko_title.replace('...', '').strip()
 
-            ko_full_text = translator.translate(full_text[:2000])
+            # 본문 역시 AI를 통해 문맥에 맞게 번역 (최대 1500자로 잘라서 처리 속도 및 정확성 확보)
+            ko_full_text = smart_translate(full_text[:1500])
             source_name = a['source']['name'] or "Global News"
             
             sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
@@ -184,24 +205,19 @@ def create_slides(article):
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
     s1.save("images/slide_0.png")
 
-    # --- 2번 장: [수정] 풀스크린 이미지 + 다크 그라데이션 ---
-    # 이미지를 화면에 꽉 차게 리사이징
+    # --- 2번 장: 풀스크린 이미지 + 다크 그라데이션 ---
     s2 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS) 
     
     overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
     draw_overlay = ImageDraw.Draw(overlay)
     
-    # 그라데이션 효과 (화면의 40% 지점부터 하단으로 갈수록 점진적으로 어두워짐)
     start_y = int(height * 0.40)
     for y in range(start_y, height):
-        # alpha 값이 0(투명)에서 240(매우 어두움)까지 서서히 증가
         alpha = int(240 * ((y - start_y) / (height - start_y)))
         draw_overlay.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
     
-    # 텍스트 이쁘게 줄바꿈 (가독성 유지)
     wrapped_core = textwrap.fill(article['core_message'], width=24)
     
-    # 텍스트는 완전히 어두워진 하단 중앙(75% 지점)에 배치
     text_y = int(height * 0.75)
     draw_overlay.multiline_text((width//2, text_y), wrapped_core, fill=(255, 255, 255, 250), font=core_font, anchor="mm", align="center", spacing=15)
     

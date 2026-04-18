@@ -46,7 +46,6 @@ ENGAGEMENT_QUESTIONS = [
     "이 뉴스에 공감하시나요? 주변에 알리고 싶다면 저장과 공유를 잊지 마세요!🔖"
 ]
 
-# [업데이트] 다채로운 매거진 도입부 풀(Pool) 대폭 확장
 INTROS = [
     "최근 글로벌 시장을 뒤흔들며 전 세계의 이목이 집중되고 있는 핵심 이슈입니다.",
     "해당 소식이 전해지면서 관련 업계와 글로벌 투자자들 사이에서 뜨거운 화두로 떠올랐습니다.",
@@ -57,7 +56,6 @@ INTROS = [
     "기존의 판도를 바꿀 수 있는 중대한 소식인 만큼, 글로벌 언론들도 이를 예의주시하고 있습니다."
 ]
 
-# [업데이트] 반복되던 "구체적인 내용을 살펴보면"을 대체할 브릿지 문구들
 BODY_PREFIXES = [
     "구체적인 내용을 살펴보면,",
     "이번 사안의 핵심을 요약하자면,",
@@ -103,7 +101,6 @@ def crawl_full_text(url):
     except:
         return None
 
-# [원초적 해결 1]: 무식한 단어 자르기 삭제 & 스마트 명사화 도입
 def smart_translate_title(text):
     prompt = f"As an expert Instagram news editor, summarize this English headline into a highly clickable, punchy Korean keyword headline. Rule 1: MAXIMUM 20 characters. Rule 2: DO NOT translate the whole sentence. Extract only the most shocking/important keywords. Rule 3: Must end with a noun (e.g., '급락', '경고', '발표', '혁신', '우려'). DO NOT end with verbs. Output ONLY the Korean text. Text: {text}"
     
@@ -120,20 +117,18 @@ def smart_translate_title(text):
             time.sleep(1)
             pass
     
-    # 구글 번역기 폴백 (AI 통신 실패 시)
     if not ko_title:
         ko_title = GoogleTranslator(source='en', target='ko').translate(text)
         ko_title = ko_title.replace("다이빙을 공유", "주가 급락").replace("공유가 다이빙", "주가 급락").replace("물러나면서", "사임")
-        
-        # [핵심] 어색한 자르기 대신, 번역된 문장의 끝부분(동사/조사)을 깔끔하게 도려내어 명사형으로 만듭니다.
         ko_title = re.sub(r'(했다|합니다|하다|했습니다|할 것|예정이다|된다|된다고|밝혔다|보인다|경고했다|주장했다|말했다)$', '', ko_title).strip()
             
-    # 최종 조사 다듬기
     ko_title = re.sub(r'[은는이가를을에의]$', '', ko_title).strip()
     return ko_title
 
+# [원초적 해결: 본문 존댓말 번역 강제]
 def smart_translate_body(text):
-    prompt = f"Translate this financial/tech news into a professional Korean journalistic style. Accurately translate business idioms: 'earnings letter/report' -> '실적 발표 서한', 'shares dive/plunge' -> '주가 급락', 'shares soar' -> '주가 폭등'. Do not use literal word-for-word translation. Output ONLY the Korean text. Text: {text}"
+    # 프롬프트에 "~습니다/~합니다" 톤 사용을 강력하게 지시
+    prompt = f"Translate this financial/tech news into a professional Korean journalistic style. Accurately translate business idioms: 'earnings letter/report' -> '실적 발표 서한', 'shares dive/plunge' -> '주가 급락'. MUST use polite and formal Korean endings like '~습니다' or '~합니다'. Do not use literal word-for-word translation. Output ONLY the Korean text. Text: {text}"
     for _ in range(2):
         try:
             res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=15)
@@ -199,12 +194,27 @@ def get_processed_news():
         ko_title = smart_translate_title(en_title)
         ko_full_text = smart_translate_body(full_text[:1500])
         
+        # [핵심 방어막] 오역 교정 및 신문 체(반말) -> 존댓말 톤앤매너 완벽 변환
         ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한")\
                                    .replace("수익 보고서", "실적 보고서")\
                                    .replace("수익 통화", "실적 컨퍼런스콜")\
                                    .replace("다이빙을 공유", "주가 급락")\
                                    .replace("공유가 다이빙", "주가 급락")\
-                                   .replace("주식을 공유", "주가 공유")
+                                   .replace("주식을 공유", "주가 공유")\
+                                   .replace("했다.", "했습니다.")\
+                                   .replace("한다.", "합니다.")\
+                                   .replace("된다.", "됩니다.")\
+                                   .replace("이다.", "입니다.")\
+                                   .replace("밝혔다.", "밝혔습니다.")\
+                                   .replace("말했다.", "말했습니다.")\
+                                   .replace("나타났다.", "나타났습니다.")\
+                                   .replace("예정이다.", "예정입니다.")\
+                                   .replace("전망이다.", "전망입니다.")\
+                                   .replace("보인다.", "보입니다.")\
+                                   .replace("않았다.", "않았습니다.")\
+                                   .replace("없다.", "없습니다.")\
+                                   .replace("있다.", "있습니다.")\
+                                   .replace("기록했다.", "기록했습니다.")
 
         source_name = a['source']['name'] or "Global News"
         
@@ -213,7 +223,6 @@ def get_processed_news():
 
         core_message = sentences[0]
 
-        # [다채로운 템플릿 조합]
         intro_text = random.choice(INTROS)
         body_prefix = random.choice(BODY_PREFIXES)
         trans_text = random.choice(TRANSITIONS)
@@ -224,7 +233,6 @@ def get_processed_news():
         summary = f"📢 [{ko_title}]\n\n"
         summary += f"{intro_text}\n\n"
         body_text = ". ".join(sentences[0:3])
-        # [수정] 고정되었던 '해당 사안의 구체적인 내용을 살펴보면,' 문구 랜덤화
         summary += f"{body_prefix} {body_text}. {trans_text}\n\n"
         conclusion_text = sentences[3] if len(sentences) > 3 else sentences[-1]
         summary += f"{conclusion_text}. {concl_text}\n\n"
@@ -274,7 +282,6 @@ def create_slides(article):
     draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra")
     draw.text((width//2, height//2 - 160), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor="mm")
     
-    # 텍스트 폭을 12로 살짝 넓혀서 시원하게 줄바꿈
     wrapped_title = textwrap.fill(article['ko_title'], width=12)
     draw.multiline_text((width//2, height//2 + 20), wrapped_title, fill=(255, 255, 255), font=title_font, anchor="mm", align="center", spacing=25)
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")

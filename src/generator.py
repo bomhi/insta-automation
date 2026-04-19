@@ -26,7 +26,8 @@ JUNK_PHRASES = [
     'read more', 'learn more', 'pays us', 'generated through this link',
     'Yahoo Finance', '브로커-딜러', '투자 자문', '증권이나 암호화폐', '판매하거나', 
     '거래를 촉진하지', '투자 권유가 아닙니다', '법적 조언', '재무 조언', '투자에 대한 책임',
-    '손실에 대해', 'broker-dealer', 'investment advisor', 'financial advice'
+    '손실에 대해', 'broker-dealer', 'investment advisor', 'financial advice',
+    '작성자', '특파원', '기자='
 ]
 SKIP_KEYWORDS = ['AP Photo', 'AP 사진', 'Photo/', 'Photograph', 'Caption', '©', '출처:', '연설하고', '손짓을', '재배포 금지']
 
@@ -93,39 +94,31 @@ def crawl_full_text(url):
     except:
         return None
 
-# [원초적 해결: 자연스러운 제목 압축 알고리즘]
+# [수정: 제목 자연스러움 강화]
 def smart_translate_title(text):
-    prompt = f"As an expert Instagram news editor, summarize this English headline into a highly clickable, punchy Korean keyword headline. Rule 1: MAXIMUM 15 characters. Rule 2: DO NOT translate the whole sentence. Extract only the most shocking/important keywords. Rule 3: Must end with a noun. DO NOT end with verbs. Output ONLY the Korean text. Text: {text}"
+    prompt = f"As an expert Instagram news editor, summarize this English headline into a highly clickable, natural Korean magazine headline. Rule 1: Length must be 15 to 30 characters. Rule 2: Form a natural phrase, NOT just disconnected keywords. Rule 3: Must end with a noun (e.g., '급락', '경고', '발표', '혁신', '성공'). Output ONLY the Korean text. Text: {text}"
     
     ko_title = ""
-    # AI 통신 재시도 횟수를 늘려 구글 번역기 의존도 최소화
     for _ in range(3):
         try:
             res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=12)
             res.raise_for_status()
             ko_text = re.sub(r'[*"\'\[\]]', '', res.text.strip())
-            if ko_text and len(ko_text) >= 2 and "Translate" not in ko_text and "Rule" not in ko_text:
+            if ko_text and len(ko_text) >= 5 and "Translate" not in ko_text and "Rule" not in ko_text:
                 ko_title = ko_text
                 break
         except Exception:
             time.sleep(1)
             pass
     
-    # [방어막 3]: AI 실패 시, 번역기 문장을 자연스럽게 요약 압축
     if not ko_title:
         ko_title = GoogleTranslator(source='en', target='ko').translate(text)
         ko_title = ko_title.replace("다이빙을 공유", "주가 급락").replace("공유가 다이빙", "주가 급락").replace("물러나면서", "사임")
         
-        # 1. 불필요한 수식어 및 접속사 우선 제거 (예: ~계속되면서, ~에 따르면)
         ko_title = re.sub(r'(\S+면서|\S+따르면|\S+밝힌 가운데)\s', '', ko_title)
-        
-        # 2. 문장 끝의 서술어 강제 절단 (명사형 마무리를 위해)
         ko_title = re.sub(r'(했다|합니다|하다|했습니다|할 것|예정이다|된다|된다고|밝혔다|보인다|경고했다|주장했다|말했다|동결됐다|나타났다|전망이다)$', '', ko_title).strip()
-        
-        # 3. 끝자리 조사 다듬기
         ko_title = re.sub(r'[은는이가를을에의]$', '', ko_title).strip()
         
-        # 4. 글자 수가 너무 길 때(25자 초과) 기계적 잘림 방지 -> 단어를 보존하며 줄임말 처리
         if len(ko_title) > 25:
             words = ko_title.split()
             safe_title = ""
@@ -137,8 +130,9 @@ def smart_translate_title(text):
             
     return ko_title
 
+# [수정: 과학 번역 추가 & 존댓말 강제]
 def smart_translate_body(text):
-    prompt = f"Translate this financial/tech news into a professional Korean journalistic style. Accurately translate business idioms. MUST use polite and formal Korean endings like '~습니다' or '~합니다'. Do not use literal word-for-word translation. Output ONLY the Korean text. Text: {text}"
+    prompt = f"Translate this financial/tech/science news into a highly professional Korean journalistic style. Accurately translate idioms (e.g., 'shares dive' -> '주가 급락', 'breakthrough' -> '획기적 발견'). MUST use polite and formal Korean endings ('~습니다', '~합니다') exclusively. Do not mix informal endings like '~했다'. Output ONLY the Korean text. Text: {text}"
     for _ in range(2):
         try:
             res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=15)
@@ -155,15 +149,29 @@ def process_single_article(article_data):
     full_text = crawl_full_text(article_data['url'])
     if not full_text or len(full_text) < 300: return None
 
+    # [수정: 기자명, 통신사명 사전 살균 (By John Doe, Reuters 등 제거)]
+    full_text = re.sub(r'^(By\s[A-Za-z\s]+|Reuters|Bloomberg|AP)\s*[-:]\s*', '', full_text, flags=re.IGNORECASE)
+
     en_title = article_data['title'].split(' - ')[0]
     ko_title = smart_translate_title(en_title)
     ko_full_text = smart_translate_body(full_text[:1500])
     
+    # [수정: 20여 가지 반말(신문체) -> 존댓말 강제 변환 패치]
     ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한")\
                                .replace("수익 보고서", "실적 보고서")\
                                .replace("다이빙을 공유", "주가 급락")\
-                               .replace("했다.", "했습니다.")\
-                               .replace("밝혔다.", "밝혔습니다.")
+                               .replace("했다.", "했습니다.").replace("한다.", "합니다.")\
+                               .replace("된다.", "됩니다.").replace("이다.", "입니다.")\
+                               .replace("밝혔다.", "밝혔습니다.").replace("말했다.", "말했습니다.")\
+                               .replace("나타났다.", "나타났습니다.").replace("예정이다.", "예정입니다.")\
+                               .replace("전망이다.", "전망입니다.").replace("보인다.", "보입니다.")\
+                               .replace("않았다.", "않았습니다.").replace("없다.", "없습니다.")\
+                               .replace("있다.", "있습니다.").replace("기록했다.", "기록했습니다.")\
+                               .replace("발표했다.", "발표했습니다.").replace("전망했다.", "전망했습니다.")\
+                               .replace("분석했다.", "분석했습니다.").replace("성공했다.", "성공했습니다.")\
+                               .replace("급락했다.", "급락했습니다.").replace("상승했다.", "상승했습니다.")\
+                               .replace("하락했다.", "하락했습니다.").replace("증가했다.", "증가했습니다.")\
+                               .replace("감소했다.", "감소했습니다.")
 
     source_name = article_data['source']['name'] or "Global News"
     
@@ -363,13 +371,18 @@ def main():
         
         if biz_data:
             create_slides(biz_data, "biz")
-            with open("biz_summary.txt", "w", encoding="utf-8") as f: f.write(biz_data['summary_ko'])
-            print("🟢 경제(Biz) 콘텐츠 생성 완료!")
+            # 파일을 '쓰기 모드(w)'로 확실하게 열어서 데이터를 덮어씁니다.
+            with open("biz_summary.txt", "w", encoding="utf-8") as f: 
+                f.write(biz_data['summary_ko'])
+                f.flush()
+            print("🟢 경제(Biz) 콘텐츠 생성 완료! (biz_summary.txt 저장됨)")
             
         if sci_data:
             create_slides(sci_data, "sci")
-            with open("sci_summary.txt", "w", encoding="utf-8") as f: f.write(sci_data['summary_ko'])
-            print("🔵 과학(Sci) 콘텐츠 생성 완료!")
+            with open("sci_summary.txt", "w", encoding="utf-8") as f: 
+                f.write(sci_data['summary_ko'])
+                f.flush()
+            print("🔵 과학(Sci) 콘텐츠 생성 완료! (sci_summary.txt 저장됨)")
             
     elif mode == "--upload":
         upload_to_insta()

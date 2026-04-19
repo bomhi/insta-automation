@@ -15,7 +15,6 @@ from bs4 import BeautifulSoup
 # [설정]
 INSTA_ID = "@world_folio"
 
-# [광고/보안/금융 면책조항 완벽 차단 리스트]
 JUNK_PHRASES = [
     'Ben이 스토리를', '받은편지함', '가입', '동의하는', '약관', '개인 정보', 
     'Insider', '뉴스레터', '클릭하면', 'Copyright', 'All rights reserved', '무료 기사',
@@ -51,9 +50,7 @@ INTROS = [
     "해당 소식이 전해지면서 관련 업계와 글로벌 투자자들 사이에서 뜨거운 화두로 떠올랐습니다.",
     "현재 주요 외신들 사이에서도 앞다투어 비중 있게 다뤄지며 향후 파장에 대한 다양한 해석이 나오고 있습니다.",
     "단순한 해프닝을 넘어 글로벌 트렌드의 새로운 변곡점이 될 수 있다는 분석이 제기되고 있습니다.",
-    "시장의 예상을 뛰어넘는 전개로 인해 전 세계적인 관심이 쏠리고 있는 상황입니다.",
-    "최근 불거진 이 사안이 국제 경제와 산업 전반에 적지 않은 파장을 예고하며 주목받고 있습니다.",
-    "기존의 판도를 바꿀 수 있는 중대한 소식인 만큼, 글로벌 언론들도 이를 예의주시하고 있습니다."
+    "시장의 예상을 뛰어넘는 전개로 인해 전 세계적인 관심이 쏠리고 있는 상황입니다."
 ]
 
 BODY_PREFIXES = [
@@ -61,26 +58,21 @@ BODY_PREFIXES = [
     "이번 사안의 핵심을 요약하자면,",
     "현지 주요 보도와 전문가들의 분석에 따르면,",
     "자세한 내막을 들여다보면,",
-    "시장이 가장 크게 주목하는 부분을 짚어보면,",
-    "업계 관계자들의 전언에 따르면,"
+    "시장이 가장 크게 주목하는 부분을 짚어보면,"
 ]
 
 TRANSITIONS = [
     "특히 이번 과정에서 나타난 특징적인 요소들은 기존의 흐름과는 완전히 다른 양상을 보이고 있어 주목할 만합니다.",
     "무엇보다 이면에 자리한 전략적 의도와 시장의 즉각적인 반응이 향후 흐름을 가늠할 중요한 잣대가 될 것으로 보입니다.",
     "이러한 움직임은 단순한 소식을 넘어, 새로운 주도권을 쥐기 위한 글로벌 기업들의 발빠른 행보로 풀이됩니다.",
-    "전문가들은 이 같은 변화가 관련 산업 및 경제 전반에 새로운 연쇄 작용을 촉발할 가능성이 높다고 분석합니다.",
-    "이로 인해 향후 시장의 불확실성이 커질 수 있다는 우려와 새로운 기회가 될 것이란 전망이 엇갈리고 있습니다.",
-    "주목할 점은 이번 사안이 단기적인 이슈에 그치지 않고 장기적인 지각 변동을 일으킬 수 있다는 것입니다."
+    "전문가들은 이 같은 변화가 관련 산업 및 경제 전반에 새로운 연쇄 작용을 촉발할 가능성이 높다고 분석합니다."
 ]
 
 CONCLUSIONS = [
     "결국 단기적인 성과보다는 고유의 경쟁력과 지속 가능성을 확보하는 것이 향후 가장 중요한 과제가 될 전망입니다.",
     "앞으로의 구체적인 대응 방식과 후속 조치가 어떤 실질적 결과를 낳을지 전 세계가 예의주시해야 할 시점입니다.",
     "기대와 우려가 교차하는 가운데, 시장에 어떻게 안착할 수 있을지가 앞으로의 핵심 관건입니다.",
-    "결과적으로 이번 이슈는 다가올 거대한 변화의 신호탄일 수 있으며, 철저한 대비와 전략적 접근이 필요해 보입니다.",
-    "향후 뚜렷한 모멘텀을 만들어내며 긍정적인 전환점을 맞이할 수 있을지 귀추가 주목됩니다.",
-    "시장의 변동성이 커지는 만큼, 관련 동향을 지속적으로 모니터링하며 리스크를 관리하는 것이 무엇보다 중요해 보입니다."
+    "결과적으로 이번 이슈는 다가올 거대한 변화의 신호탄일 수 있으며, 철저한 대비와 전략적 접근이 필요해 보입니다."
 ]
 
 def is_valid_paragraph(text):
@@ -101,11 +93,13 @@ def crawl_full_text(url):
     except:
         return None
 
+# [원초적 해결: 자연스러운 제목 압축 알고리즘]
 def smart_translate_title(text):
-    prompt = f"As an expert Instagram news editor, summarize this English headline into a highly clickable, punchy Korean keyword headline. Rule 1: MAXIMUM 20 characters. Rule 2: DO NOT translate the whole sentence. Extract only the most shocking/important keywords. Rule 3: Must end with a noun (e.g., '급락', '경고', '발표', '혁신', '우려'). DO NOT end with verbs. Output ONLY the Korean text. Text: {text}"
+    prompt = f"As an expert Instagram news editor, summarize this English headline into a highly clickable, punchy Korean keyword headline. Rule 1: MAXIMUM 15 characters. Rule 2: DO NOT translate the whole sentence. Extract only the most shocking/important keywords. Rule 3: Must end with a noun. DO NOT end with verbs. Output ONLY the Korean text. Text: {text}"
     
     ko_title = ""
-    for _ in range(2):
+    # AI 통신 재시도 횟수를 늘려 구글 번역기 의존도 최소화
+    for _ in range(3):
         try:
             res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=12)
             res.raise_for_status()
@@ -117,18 +111,34 @@ def smart_translate_title(text):
             time.sleep(1)
             pass
     
+    # [방어막 3]: AI 실패 시, 번역기 문장을 자연스럽게 요약 압축
     if not ko_title:
         ko_title = GoogleTranslator(source='en', target='ko').translate(text)
         ko_title = ko_title.replace("다이빙을 공유", "주가 급락").replace("공유가 다이빙", "주가 급락").replace("물러나면서", "사임")
-        ko_title = re.sub(r'(했다|합니다|하다|했습니다|할 것|예정이다|된다|된다고|밝혔다|보인다|경고했다|주장했다|말했다)$', '', ko_title).strip()
+        
+        # 1. 불필요한 수식어 및 접속사 우선 제거 (예: ~계속되면서, ~에 따르면)
+        ko_title = re.sub(r'(\S+면서|\S+따르면|\S+밝힌 가운데)\s', '', ko_title)
+        
+        # 2. 문장 끝의 서술어 강제 절단 (명사형 마무리를 위해)
+        ko_title = re.sub(r'(했다|합니다|하다|했습니다|할 것|예정이다|된다|된다고|밝혔다|보인다|경고했다|주장했다|말했다|동결됐다|나타났다|전망이다)$', '', ko_title).strip()
+        
+        # 3. 끝자리 조사 다듬기
+        ko_title = re.sub(r'[은는이가를을에의]$', '', ko_title).strip()
+        
+        # 4. 글자 수가 너무 길 때(25자 초과) 기계적 잘림 방지 -> 단어를 보존하며 줄임말 처리
+        if len(ko_title) > 25:
+            words = ko_title.split()
+            safe_title = ""
+            for word in words:
+                if len(safe_title) + len(word) > 22:
+                    break
+                safe_title += word + " "
+            ko_title = safe_title.strip() + "..."
             
-    ko_title = re.sub(r'[은는이가를을에의]$', '', ko_title).strip()
     return ko_title
 
-# [원초적 해결: 본문 존댓말 번역 강제]
 def smart_translate_body(text):
-    # 프롬프트에 "~습니다/~합니다" 톤 사용을 강력하게 지시
-    prompt = f"Translate this financial/tech news into a professional Korean journalistic style. Accurately translate business idioms: 'earnings letter/report' -> '실적 발표 서한', 'shares dive/plunge' -> '주가 급락'. MUST use polite and formal Korean endings like '~습니다' or '~합니다'. Do not use literal word-for-word translation. Output ONLY the Korean text. Text: {text}"
+    prompt = f"Translate this financial/tech news into a professional Korean journalistic style. Accurately translate business idioms. MUST use polite and formal Korean endings like '~습니다' or '~합니다'. Do not use literal word-for-word translation. Output ONLY the Korean text. Text: {text}"
     for _ in range(2):
         try:
             res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=15)
@@ -141,117 +151,80 @@ def smart_translate_body(text):
             pass
     return GoogleTranslator(source='en', target='ko').translate(text)
 
+def process_single_article(article_data):
+    full_text = crawl_full_text(article_data['url'])
+    if not full_text or len(full_text) < 300: return None
+
+    en_title = article_data['title'].split(' - ')[0]
+    ko_title = smart_translate_title(en_title)
+    ko_full_text = smart_translate_body(full_text[:1500])
+    
+    ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한")\
+                               .replace("수익 보고서", "실적 보고서")\
+                               .replace("다이빙을 공유", "주가 급락")\
+                               .replace("했다.", "했습니다.")\
+                               .replace("밝혔다.", "밝혔습니다.")
+
+    source_name = article_data['source']['name'] or "Global News"
+    
+    sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
+    if len(sentences) < 3: return None
+
+    core_message = sentences[0]
+
+    intro_text = random.choice(INTROS)
+    body_prefix = random.choice(BODY_PREFIXES)
+    trans_text = random.choice(TRANSITIONS)
+    concl_text = random.choice(CONCLUSIONS)
+    hook_text = random.choice(HOOK_TAGS)
+    engagement_text = random.choice(ENGAGEMENT_QUESTIONS)
+
+    summary = f"📢 [{ko_title}]\n\n"
+    summary += f"{intro_text}\n\n"
+    body_text = ". ".join(sentences[0:3])
+    summary += f"{body_prefix} {body_text}. {trans_text}\n\n"
+    conclusion_text = sentences[3] if len(sentences) > 3 else sentences[-1]
+    summary += f"{conclusion_text}. {concl_text}\n\n"
+    summary += f"💡 Q. {engagement_text}"
+
+    return {
+        'ko_title': ko_title, 
+        'core_message': core_message, 
+        'hook_tag': hook_text,        
+        'summary_ko': summary, 
+        'image_url': article_data.get('urlToImage'), 
+        'source_name': source_name
+    }
+
 def get_processed_news():
-    print("\n🔍 [1단계: AI 편집장의 데일리 화제성 판독 및 수집]")
+    print("\n🔍 [1단계: 투트랙(경제/과학) 뉴스 동시 수집 중...]")
     api_key = os.getenv('NEWS_API_KEY')
     
     b_url = f"https://newsapi.org/v2/top-headlines?country=us&category=business&pageSize=10&apiKey={api_key}"
     s_url = f"https://newsapi.org/v2/top-headlines?country=us&category=science&pageSize=10&apiKey={api_key}"
     
-    b_articles = []
-    s_articles = []
+    biz_result = None
+    sci_result = None
+    
     try:
         b_res = requests.get(b_url).json()
-        b_articles = [a for a in b_res.get('articles', []) if a.get('urlToImage') and a.get('url')]
-        
+        for a in b_res.get('articles', []):
+            if a.get('urlToImage') and a.get('url'):
+                biz_result = process_single_article(a)
+                if biz_result: break
+                
         s_res = requests.get(s_url).json()
-        s_articles = [a for a in s_res.get('articles', []) if a.get('urlToImage') and a.get('url')]
+        for a in s_res.get('articles', []):
+            if a.get('urlToImage') and a.get('url'):
+                sci_result = process_single_article(a)
+                if sci_result: break
     except Exception as e:
         print(f"❌ 뉴스 리스트 가져오기 실패: {e}")
-        return None
 
-    articles_to_process = b_articles + s_articles 
+    return biz_result, sci_result
 
-    if b_articles and s_articles:
-        b_top = b_articles[0]['title']
-        s_top = s_articles[0]['title']
-        print(f"\n🥊 [오늘의 매치업]\n경제 1위: {b_top}\n과학 1위: {s_top}")
-        
-        prompt = f"As a global news editor, compare these two headlines. 1: '{b_top}'. 2: '{s_top}'. Which one has a higher global impact, urgency, and trendiness today? Reply strictly with a single digit: '1' or '2'. No other words."
-        try:
-            res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=10)
-            choice = res.text.strip()
-            
-            if '2' in choice and '1' not in choice:
-                print("\n🌟 [AI 편집장 결정] 오늘 더 핫한 이슈는 '과학/IT' 입니다! 과학 뉴스를 메인으로 진행합니다.")
-                articles_to_process = s_articles + b_articles
-            elif choice == '2':
-                print("\n🌟 [AI 편집장 결정] 오늘 더 핫한 이슈는 '과학/IT' 입니다! 과학 뉴스를 메인으로 진행합니다.")
-                articles_to_process = s_articles + b_articles
-            else:
-                print("\n📊 [AI 편집장 결정] 오늘 더 무거운 이슈는 '경제/비즈니스' 입니다! 경제 뉴스를 메인으로 진행합니다.")
-                articles_to_process = b_articles + s_articles
-        except Exception:
-            print("\n⚠️ AI 편집장 연결 지연, 기본(경제) 우선순위로 진행합니다.")
-            articles_to_process = b_articles + s_articles
-
-    for a in articles_to_process:
-        full_text = crawl_full_text(a['url'])
-        if not full_text or len(full_text) < 300: continue
-
-        en_title = a['title'].split(' - ')[0]
-        
-        ko_title = smart_translate_title(en_title)
-        ko_full_text = smart_translate_body(full_text[:1500])
-        
-        # [핵심 방어막] 오역 교정 및 신문 체(반말) -> 존댓말 톤앤매너 완벽 변환
-        ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한")\
-                                   .replace("수익 보고서", "실적 보고서")\
-                                   .replace("수익 통화", "실적 컨퍼런스콜")\
-                                   .replace("다이빙을 공유", "주가 급락")\
-                                   .replace("공유가 다이빙", "주가 급락")\
-                                   .replace("주식을 공유", "주가 공유")\
-                                   .replace("했다.", "했습니다.")\
-                                   .replace("한다.", "합니다.")\
-                                   .replace("된다.", "됩니다.")\
-                                   .replace("이다.", "입니다.")\
-                                   .replace("밝혔다.", "밝혔습니다.")\
-                                   .replace("말했다.", "말했습니다.")\
-                                   .replace("나타났다.", "나타났습니다.")\
-                                   .replace("예정이다.", "예정입니다.")\
-                                   .replace("전망이다.", "전망입니다.")\
-                                   .replace("보인다.", "보입니다.")\
-                                   .replace("않았다.", "않았습니다.")\
-                                   .replace("없다.", "없습니다.")\
-                                   .replace("있다.", "있습니다.")\
-                                   .replace("기록했다.", "기록했습니다.")
-
-        source_name = a['source']['name'] or "Global News"
-        
-        sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
-        if len(sentences) < 3: continue
-
-        core_message = sentences[0]
-
-        intro_text = random.choice(INTROS)
-        body_prefix = random.choice(BODY_PREFIXES)
-        trans_text = random.choice(TRANSITIONS)
-        concl_text = random.choice(CONCLUSIONS)
-        hook_text = random.choice(HOOK_TAGS)
-        engagement_text = random.choice(ENGAGEMENT_QUESTIONS)
-
-        summary = f"📢 [{ko_title}]\n\n"
-        summary += f"{intro_text}\n\n"
-        body_text = ". ".join(sentences[0:3])
-        summary += f"{body_prefix} {body_text}. {trans_text}\n\n"
-        conclusion_text = sentences[3] if len(sentences) > 3 else sentences[-1]
-        summary += f"{conclusion_text}. {concl_text}\n\n"
-        summary += f"💡 Q. {engagement_text}"
-
-        return {
-            'ko_title': ko_title, 
-            'core_message': core_message, 
-            'hook_tag': hook_text,        
-            'summary_ko': summary, 
-            'image_url': a.get('urlToImage'), 
-            'source_name': source_name
-        }
-        
-    return None
-
-def create_slides(article):
-    print("\n🎨 [2단계: 슬라이드 3장 제작 (풀스크린 매거진 스타일 1080x1080)]")
-    
+def create_slides(article, prefix):
+    print(f"\n🎨 [2단계: {prefix.upper()} 슬라이드 3장 제작 중...]")
     width, height = 1080, 1080
     
     try:
@@ -274,22 +247,20 @@ def create_slides(article):
     except:
         title_font = hook_font = core_font = id_font = source_font = cta_main_font = cta_sub_font = ImageFont.load_default()
 
-    # --- 1번 장: 타이틀 ---
     s1 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(radius=10))
     s1 = ImageEnhance.Brightness(s1).enhance(0.35) 
     draw = ImageDraw.Draw(s1)
     
     draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra")
-    draw.text((width//2, height//2 - 160), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor="mm")
+    draw.text((width//2, 180), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor="mm")
     
     wrapped_title = textwrap.fill(article['ko_title'], width=12)
     draw.multiline_text((width//2, height//2 + 20), wrapped_title, fill=(255, 255, 255), font=title_font, anchor="mm", align="center", spacing=25)
-    draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
-    s1.save("images/slide_0.png")
-
-    # --- 2번 장: 풀스크린 이미지 + 다크 그라데이션 ---
-    s2 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS) 
     
+    draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
+    s1.save(f"images/{prefix}_slide_0.png")
+
+    s2 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS) 
     overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
     draw_overlay = ImageDraw.Draw(overlay)
     
@@ -303,9 +274,8 @@ def create_slides(article):
     draw_overlay.multiline_text((width//2, text_y), wrapped_core, fill=(255, 255, 255, 250), font=core_font, anchor="mm", align="center", spacing=15)
     
     s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
-    s2.save("images/slide_1.png")
+    s2.save(f"images/{prefix}_slide_1.png")
 
-    # --- 3번 장: 심플 화이트 배경 + 파스텔톤 CTA ---
     s3 = Image.new('RGB', (width, height), color=(255, 255, 255))
     draw_s3 = ImageDraw.Draw(s3)
     
@@ -314,12 +284,30 @@ def create_slides(article):
     draw_s3.text((width//2, 530), "좋아요  ·  댓글  ·  저장", fill=(180, 180, 180), font=cta_sub_font, anchor="mm")
     draw_s3.text((width//2, 700), f"{INSTA_ID} 팔로우하기", fill=pastel_color, font=cta_sub_font, anchor="mm")
 
-    s3.save("images/slide_2.png")
-    
-    return ["images/slide_0.png", "images/slide_1.png", "images/slide_2.png"]
+    s3.save(f"images/{prefix}_slide_2.png")
 
-def upload_to_insta(summary_ko):
-    print("\n📤 [3단계: 인스타그램 최종 게시]")
+def upload_to_insta():
+    print("\n📤 [3단계: 인스타그램 최종 게시 (선택적 업로드)]")
+    
+    biz_exists = os.path.exists("biz_summary.txt")
+    sci_exists = os.path.exists("sci_summary.txt")
+    
+    if biz_exists and sci_exists:
+        print("❌ [경고] 경제(biz)와 과학(sci) 파일이 둘 다 존재합니다!")
+        print("💡 깃허브에서 오늘 업로드하지 않을 카테고리의 '_summary.txt' 파일을 삭제한 뒤 다시 Upload를 돌려주세요.")
+        sys.exit(1)
+    elif biz_exists:
+        prefix = "biz"
+        with open("biz_summary.txt", "r", encoding="utf-8") as f: summary_ko = f.read()
+    elif sci_exists:
+        prefix = "sci"
+        with open("sci_summary.txt", "r", encoding="utf-8") as f: summary_ko = f.read()
+    else:
+        print("❌ [오류] 업로드할 요약 파일(summary.txt)이 없습니다. Generate부터 다시 실행해주세요.")
+        sys.exit(1)
+
+    print(f"🚀 타겟 확인됨: [{prefix.upper()}] 카테고리를 업로드합니다.")
+
     access_token = os.getenv('INSTA_ACCESS_TOKEN')
     account_id = os.getenv('INSTA_USER_ID')
     user_name = "bomhi" 
@@ -327,7 +315,7 @@ def upload_to_insta(summary_ko):
     
     container_ids = []
     for i in range(3):
-        img_url = f"https://raw.githubusercontent.com/{user_name}/{repo_name}/main/images/slide_{i}.png?t={int(time.time())}"
+        img_url = f"https://raw.githubusercontent.com/{user_name}/{repo_name}/main/images/{prefix}_slide_{i}.png?t={int(time.time())}"
         res = requests.post(f"https://graph.facebook.com/v19.0/{account_id}/media", data={
             'image_url': img_url, 
             'is_carousel_item': 'true', 
@@ -368,25 +356,23 @@ def main():
             shutil.rmtree("images", ignore_errors=True)
         os.makedirs("images", exist_ok=True)
         
-        if os.path.exists("summary.txt"):
-            os.remove("summary.txt")
+        if os.path.exists("biz_summary.txt"): os.remove("biz_summary.txt")
+        if os.path.exists("sci_summary.txt"): os.remove("sci_summary.txt")
         
-        data = get_processed_news()
-        if data:
-            create_slides(data)
-            with open("summary.txt", "w", encoding="utf-8") as f:
-                f.write(data['summary_ko'])
-            print("🚀 모든 콘텐츠 생성 완료!")
-        else:
-            print("❌ 조건에 맞는 뉴스를 찾지 못했습니다.")
+        biz_data, sci_data = get_processed_news()
+        
+        if biz_data:
+            create_slides(biz_data, "biz")
+            with open("biz_summary.txt", "w", encoding="utf-8") as f: f.write(biz_data['summary_ko'])
+            print("🟢 경제(Biz) 콘텐츠 생성 완료!")
+            
+        if sci_data:
+            create_slides(sci_data, "sci")
+            with open("sci_summary.txt", "w", encoding="utf-8") as f: f.write(sci_data['summary_ko'])
+            print("🔵 과학(Sci) 콘텐츠 생성 완료!")
             
     elif mode == "--upload":
-        if os.path.exists("summary.txt"):
-            with open("summary.txt", "r", encoding="utf-8") as f:
-                summary = f.read()
-            upload_to_insta(summary)
-        else:
-            print("❌ 요약 파일이 없습니다.")
+        upload_to_insta()
 
 if __name__ == "__main__":
     main()

@@ -47,20 +47,22 @@ jobs:
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
         run: python src/generator.py --generate
 
-      # 2단계: 강력한 동기화 및 푸시
+      # 2단계: 강력한 동기화 및 푸시 (수정된 부분)
       - name: Commit and Push
         if: github.event.inputs.action == 'generate' || github.event_name == 'schedule'
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           
-          git add images/ summary.txt
+          # [핵심 수정] 기존 파일 삭제 후, 투트랙(경제/과학) 파일 모두 깃허브에 추가
+          git rm -f summary.txt --ignore-unmatch
+          git add images/ biz_summary.txt sci_summary.txt
           
           # 변경사항이 있을 때만 실행
           if [ -n "$(git status --porcelain)" ]; then
             git commit -m "Prepare news content for review"
             
-            # [핵심] 푸시 직전에 서버의 최신본을 다시 가져와서 내 커밋을 그 위에 얹습니다.
+            # 푸시 직전에 서버의 최신본을 다시 가져와서 내 커밋을 그 위에 얹습니다.
             # 충돌 발생 시 '우리의 것(방금 만든 사진)'을 우선시합니다.
             git pull --rebase -X ours origin main
             

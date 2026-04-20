@@ -38,6 +38,7 @@ def crawl_full_text(url):
 
 # [초강력 업데이트: 구글 라이브러리를 쓰지 않는 REST API 직접 호출 방식]
 # [초강력 업데이트: 전 세계 100% 호환 범용 모델(gemini-pro) 다이렉트 통신]
+# [최종 무적 패치: 내 계정 권한에 맞는 최적의 AI 모델 자동 탐색 및 접속]
 def analyze_and_generate_content(raw_text, category):
     safe_text = raw_text[:5000]
     
@@ -63,26 +64,49 @@ def analyze_and_generate_content(raw_text, category):
     {safe_text}
     """
 
-# 구글의 최신형 차세대 2.0 엔진 주소로 교체!
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-    
-    headers = {'Content-Type': 'application/json'}
-    data = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.4
-            # [수정 2] 1.0 모델에서 에러를 뱉을 수 있는 responseMimeType 옵션 제거
-        }
-    }
-
     try:
+        # [혁신 로직 1단계] 내 API 키로 접근 가능한 구글 모델 리스트 스캔
+        models_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+        model_req = requests.get(models_url, timeout=10)
+        model_req.raise_for_status()
+        
+        available_models = model_req.json().get('models', [])
+        target_model = None
+
+        # 사용 가능한 모델 중 텍스트 생성이 가능하며 가장 좋은 모델 자동 추적
+        for m in available_models:
+            name = m.get('name', '')
+            methods = m.get('supportedGenerationMethods', [])
+            if 'generateContent' in methods and 'gemini' in name:
+                if '1.5-flash' in name:  # 1순위: 가장 빠르고 안정적인 Flash
+                    target_model = name
+                    break
+                elif not target_model:   # 2순위: 사용 가능한 아무 Gemini 모델
+                    target_model = name
+
+        if not target_model:
+            target_model = "models/gemini-1.5-flash" # 만약 못 찾으면 최후의 기본값 설정
+
+        print(f"✅ [시스템] 구글 서버 스캔 완료. 사용 가능한 최적의 모델({target_model})로 접속합니다...")
+
+        # [혁신 로직 2단계] 스스로 찾아낸 모델 주소로 다이렉트 통신
+        url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={GEMINI_API_KEY}"
+        
+        headers = {'Content-Type': 'application/json'}
+        data = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.4
+            }
+        }
+
         response = requests.post(url, headers=headers, json=data, timeout=30)
         response.raise_for_status() 
         
         res_json = response.json()
         ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
         
-        # 클렌징 (AI가 마크다운 찌꺼기를 줄 경우 대비)
+        # 클렌징 로직
         clean_str = ai_text.strip()
         if clean_str.startswith('```json'):
             clean_str = clean_str[7:-3].strip()
@@ -93,7 +117,7 @@ def analyze_and_generate_content(raw_text, category):
 
     except Exception as e:
         print(f"❌ Gemini 다이렉트 통신 오류: {e}")
-        if 'response' in locals():
+        if 'response' in locals() and hasattr(response, 'text'):
             print(f"상세 에러 내역: {response.text}")
         return None
 

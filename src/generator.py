@@ -7,6 +7,7 @@ import re
 import shutil
 import random 
 import urllib.parse
+import traceback
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from deep_translator import GoogleTranslator
@@ -217,74 +218,98 @@ def get_processed_news():
 
     return biz_result, sci_result
 
+# [강력 업데이트: 크래시 방어막 및 폰트 안전망 탑재]
 def create_slides(article, prefix):
     print(f"\n🎨 [2단계: {prefix.upper()} 슬라이드 3장 제작 중...]")
     width, height = 1080, 1080
     
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        orig_res = requests.get(article['image_url'], headers=headers, stream=True, timeout=10)
-        orig_res.raise_for_status()
-        raw_img = Image.open(orig_res.raw).convert('RGB')
-    except:
-        raw_img = Image.new('RGB', (width, height), color=(35, 40, 45))
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            orig_res = requests.get(article['image_url'], headers=headers, stream=True, timeout=10)
+            orig_res.raise_for_status()
+            raw_img = Image.open(orig_res.raw).convert('RGB')
+        except:
+            raw_img = Image.new('RGB', (width, height), color=(35, 40, 45))
 
-    font_path = "NanumSquareR.ttf"
-    try:
-        title_font = ImageFont.truetype(font_path, 80) 
-        hook_font = ImageFont.truetype(font_path, 35)   
-        core_font = ImageFont.truetype(font_path, 40)   
-        id_font = ImageFont.truetype(font_path, 28)
-        source_font = ImageFont.truetype(font_path, 22)
-        cta_main_font = ImageFont.truetype(font_path, 55)
-        cta_sub_font = ImageFont.truetype(font_path, 40)
-    except:
-        title_font = hook_font = core_font = id_font = source_font = cta_main_font = cta_sub_font = ImageFont.load_default()
+        # [안전망 1] 폰트 파일 절대경로 추적기
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        font_path = os.path.join(base_dir, "NanumSquareR.ttf")
+        if not os.path.exists(font_path):
+            font_path = "NanumSquareR.ttf" # 루트 디렉토리 2차 시도
 
-    # --- 1번 슬라이드 ---
-    s1 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(radius=10))
-    s1 = ImageEnhance.Brightness(s1).enhance(0.35) 
-    draw = ImageDraw.Draw(s1)
-    
-    draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra")
-    draw.text((width//2, 180), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor="mm")
-    
-    wrapped_title = textwrap.fill(article['ko_title'], width=12)
-    draw.multiline_text((width//2, height//2 + 20), wrapped_title, fill=(255, 255, 255), font=title_font, anchor="mm", align="center", spacing=25)
-    
-    draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
-    s1.save(f"images/{prefix}_slide_0.png")
+        is_default_font = False
+        try:
+            title_font = ImageFont.truetype(font_path, 80) 
+            hook_font = ImageFont.truetype(font_path, 35)   
+            core_font = ImageFont.truetype(font_path, 40)   
+            id_font = ImageFont.truetype(font_path, 28)
+            source_font = ImageFont.truetype(font_path, 22)
+            cta_main_font = ImageFont.truetype(font_path, 55)
+            cta_sub_font = ImageFont.truetype(font_path, 40)
+        except Exception as e:
+            print(f"⚠️ 폰트 경고: {e} - 기본 폰트로 안전하게 대체합니다.")
+            title_font = hook_font = core_font = id_font = source_font = cta_main_font = cta_sub_font = ImageFont.load_default()
+            is_default_font = True # 기본 폰트 크래시 방지 플래그 온
 
-    # --- 2번 슬라이드 (수정됨: 그라데이션 및 텍스트 하단 배치) ---
-    s2 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS) 
-    overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
-    draw_overlay = ImageDraw.Draw(overlay)
-    
-    # 1. 그라데이션 강도 증가 (최대 255 완전 블랙)
-    start_y = int(height * 0.40)
-    for y in range(start_y, height):
-        alpha = int(255 * ((y - start_y) / (height - start_y)))
-        draw_overlay.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
-    
-    wrapped_core = textwrap.fill(article['core_message'], width=24)
-    
-    # 2. 텍스트 바닥 고정 (mb 앵커 사용, 밑에서 120px 띄움)
-    text_y = height - 120
-    draw_overlay.multiline_text((width//2, text_y), wrapped_core, fill=(255, 255, 255, 250), font=core_font, anchor="mb", align="center", spacing=15)
-    
-    s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
-    s2.save(f"images/{prefix}_slide_1.png")
+        # [안전망 2] 구버전 파이썬/Pillow 호환성
+        try:
+            resample_filter = Image.Resampling.LANCZOS
+        except AttributeError:
+            resample_filter = Image.LANCZOS
 
-    # --- 3번 슬라이드 ---
-    s3 = Image.new('RGB', (width, height), color=(255, 255, 255))
-    draw_s3 = ImageDraw.Draw(s3)
-    
-    pastel_color = (120, 150, 180) 
-    draw_s3.text((width//2, 400), "오늘의 브리핑이 유익하셨나요?", fill=pastel_color, font=cta_main_font, anchor="mm")
-    draw_s3.text((width//2, 530), "좋아요  ·  댓글  ·  저장", fill=(180, 180, 180), font=cta_sub_font, anchor="mm")
-    draw_s3.text((width//2, 700), f"{INSTA_ID} 팔로우하기", fill=pastel_color, font=cta_sub_font, anchor="mm")
+        # --- 1번 슬라이드 ---
+        s1 = raw_img.copy().resize((width, height), resample_filter).filter(ImageFilter.GaussianBlur(radius=10))
+        s1 = ImageEnhance.Brightness(s1).enhance(0.35) 
+        draw = ImageDraw.Draw(s1)
+        
+        # is_default_font가 True면 파이썬 기본 폰트의 한계(anchor 미지원)로 인한 크래시를 회피합니다.
+        anchor_val = None if is_default_font else "mm"
+        
+        draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra" if not is_default_font else None)
+        draw.text((width//2, 180), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor=anchor_val)
+        
+        wrapped_title = textwrap.fill(article['ko_title'], width=12)
+        draw.multiline_text((width//2, height//2 + 20), wrapped_title, fill=(255, 255, 255), font=title_font, anchor=anchor_val, align="center", spacing=25)
+        
+        draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd" if not is_default_font else None)
+        s1.save(f"images/{prefix}_slide_0.png")
 
-    s3.save(f"images/{prefix}_slide_2.png")
+        # --- 2번 슬라이드 ---
+        s2 = raw_img.copy().resize((width, height), resample_filter) 
+        overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
+        draw_overlay = ImageDraw.Draw(overlay)
+        
+        start_y = int(height * 0.40)
+        for y in range(start_y, height):
+            alpha = int(255 * ((y - start_y) / (height - start_y)))
+            draw_overlay.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
+        
+        wrapped_core = textwrap.fill(article['core_message'], width=24)
+        text_y = height - 120
+        # mb 앵커(바닥 고정)도 안전하게 제어
+        draw_overlay.multiline_text((width//2, text_y), wrapped_core, fill=(255, 255, 255, 250), font=core_font, anchor="mb" if not is_default_font else None, align="center", spacing=15)
+        
+        s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
+        s2.save(f"images/{prefix}_slide_1.png")
+
+        # --- 3번 슬라이드 ---
+        s3 = Image.new('RGB', (width, height), color=(255, 255, 255))
+        draw_s3 = ImageDraw.Draw(s3)
+        
+        pastel_color = (120, 150, 180) 
+        draw_s3.text((width//2, 400), "오늘의 브리핑이 유익하셨나요?", fill=pastel_color, font=cta_main_font, anchor=anchor_val)
+        draw_s3.text((width//2, 530), "좋아요  ·  댓글  ·  저장", fill=(180, 180, 180), font=cta_sub_font, anchor=anchor_val)
+        draw_s3.text((width//2, 700), f"{INSTA_ID} 팔로우하기", fill=pastel_color, font=cta_sub_font, anchor=anchor_val)
+
+        s3.save(f"images/{prefix}_slide_2.png")
+        print(f"✅ [{prefix.upper()}] 슬라이드 생성 완료!")
+
+    except Exception as e:
+        # [에러 추적기] 만약 또 죽으면 죽은 이유를 정확히 로그에 찍어줍니다.
+        print(f"\n❌ [치명적 오류] 이미지 렌더링 중 크래시 발생: {e}")
+        traceback.print_exc()
+        sys.exit(1)
 
 def upload_to_insta():
     print("\n📤 [3단계: 인스타그램 최종 게시 (선택적 업로드)]")

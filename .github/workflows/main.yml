@@ -46,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: pip install Pillow requests beautifulsoup4 google-generativeai
 
-      # 1단계: 콘텐츠 생성 및 깃허브 저장
+      # 1단계: 콘텐츠 생성
       - name: Generate Content
         if: github.event.inputs.action == 'generate' || github.event_name == 'schedule'
         env:
@@ -54,27 +54,33 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} 
         run: python src/generator.py --generate
 
+      # [수정] 파일이 있든 없든 에러 없이 생성된 것만 골라서 커밋하는 지능형 로직
       - name: Commit and Push
         if: github.event.inputs.action == 'generate' || github.event_name == 'schedule'
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           
-          git add images/ biz_summary.txt sci_summary.txt
+          # 이미지가 생성되었다면 폴더 통째로 추가
+          if [ -d "images" ]; then git add images/; fi
+          
+          # 존재하는 텍스트 파일만 골라서 추가 (에러 방지)
+          if [ -f "biz_summary.txt" ]; then git add biz_summary.txt; fi
+          if [ -f "sci_summary.txt" ]; then git add sci_summary.txt; fi
           
           if [ -n "$(git status --porcelain)" ]; then
-            git commit -m "Prepare news content for review"
+            git commit -m "Update news content (Auto-generated)"
             git pull --rebase -X ours origin main
             git push origin main
+            echo "✅ 파일이 저장소에 성공적으로 반영되었습니다."
           else
-            echo "No changes to commit"
+            echo "⚠️ 새로 생성된 파일이 없어 커밋을 생략합니다."
           fi
 
-      # 2단계: 선택한 카테고리만 인스타그램에 업로드!
+      # 2단계: 선택한 카테고리 업로드
       - name: Upload to Instagram
         if: github.event.inputs.action == 'upload'
         env:
           INSTA_USER_ID: ${{ secrets.INSTA_USER_ID }}
           INSTA_ACCESS_TOKEN: ${{ secrets.INSTA_ACCESS_TOKEN }}
-        # 드롭다운에서 선택한 'target_category(biz/sci)'를 파이썬 스크립트에 전달
         run: python src/generator.py --upload ${{ github.event.inputs.target_category }}

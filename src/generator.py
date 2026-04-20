@@ -63,8 +63,8 @@ def analyze_and_generate_content(raw_text, category):
     {safe_text}
     """
 
-    # [수정 1] 막혀있는 1.5 대신 100% 뚫려있는 gemini-pro (1.0) 엔진 주소로 변경!
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+# 구글의 최신형 차세대 2.0 엔진 주소로 교체!
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
     
     headers = {'Content-Type': 'application/json'}
     data = {

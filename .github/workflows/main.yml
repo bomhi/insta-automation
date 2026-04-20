@@ -17,6 +17,14 @@ on:
         options:
           - generate
           - upload
+      target_category:
+        description: '[Upload 전용] 업로드할 기사를 선택하세요'
+        required: false
+        default: 'biz'
+        type: choice
+        options:
+          - biz
+          - sci
 
 jobs:
   build:
@@ -33,12 +41,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # 파이썬 최신화 (경고 제거)
+          python-version: '3.11'
 
       - name: Install dependencies
         run: pip install Pillow requests beautifulsoup4 google-generativeai
 
-      # 1단계: 이미지 생성 (여기에 GEMINI_API_KEY 다리 연결!)
+      # 1단계: 콘텐츠 생성 및 깃허브 저장
       - name: Generate Content
         if: github.event.inputs.action == 'generate' || github.event_name == 'schedule'
         env:
@@ -46,14 +54,12 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} 
         run: python src/generator.py --generate
 
-      # 2단계: 강력한 동기화 및 푸시
       - name: Commit and Push
         if: github.event.inputs.action == 'generate' || github.event_name == 'schedule'
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           
-          git rm -f summary.txt --ignore-unmatch
           git add images/ biz_summary.txt sci_summary.txt
           
           if [ -n "$(git status --porcelain)" ]; then
@@ -64,10 +70,11 @@ jobs:
             echo "No changes to commit"
           fi
 
-      # 3단계: 인스타그램 업로드
+      # 2단계: 선택한 카테고리만 인스타그램에 업로드!
       - name: Upload to Instagram
         if: github.event.inputs.action == 'upload'
         env:
           INSTA_USER_ID: ${{ secrets.INSTA_USER_ID }}
           INSTA_ACCESS_TOKEN: ${{ secrets.INSTA_ACCESS_TOKEN }}
-        run: python src/generator.py --upload
+        # 드롭다운에서 선택한 'target_category(biz/sci)'를 파이썬 스크립트에 전달
+        run: python src/generator.py --upload ${{ github.event.inputs.target_category }}

@@ -37,6 +37,7 @@ def crawl_full_text(url):
         return None
 
 # [초강력 업데이트: 구글 라이브러리를 쓰지 않는 REST API 직접 호출 방식]
+# [초강력 업데이트: 전 세계 100% 호환 범용 모델(gemini-pro) 다이렉트 통신]
 def analyze_and_generate_content(raw_text, category):
     safe_text = raw_text[:5000]
     
@@ -62,26 +63,26 @@ def analyze_and_generate_content(raw_text, category):
     {safe_text}
     """
 
-    # 제미나이 1.5 Flash 최신 모델 서버 다이렉트 주소
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # [수정 1] 막혀있는 1.5 대신 100% 뚫려있는 gemini-pro (1.0) 엔진 주소로 변경!
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
     
     headers = {'Content-Type': 'application/json'}
     data = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "responseMimeType": "application/json",
             "temperature": 0.4
+            # [수정 2] 1.0 모델에서 에러를 뱉을 수 있는 responseMimeType 옵션 제거
         }
     }
 
     try:
         response = requests.post(url, headers=headers, json=data, timeout=30)
-        response.raise_for_status() # 에러 발생 시 즉시 감지
+        response.raise_for_status() 
         
         res_json = response.json()
         ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
         
-        # 클렌징 (마크다운 찌꺼기 제거)
+        # 클렌징 (AI가 마크다운 찌꺼기를 줄 경우 대비)
         clean_str = ai_text.strip()
         if clean_str.startswith('```json'):
             clean_str = clean_str[7:-3].strip()

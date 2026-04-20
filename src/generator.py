@@ -59,7 +59,7 @@ def analyze_and_generate_content(raw_text, category):
     """
 
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-pro",
+        model_name="gemini-1.5-flash",
         system_instruction=system_instruction
     )
 

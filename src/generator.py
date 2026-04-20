@@ -15,7 +15,6 @@ from bs4 import BeautifulSoup
 # [설정]
 INSTA_ID = "@world_folio"
 
-# Gemini API 세팅
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -39,18 +38,8 @@ def crawl_full_text(url):
     except:
         return None
 
-# =====================================================================
-# 🧠 [초지능 코어] Gemini 1.5 Pro 수석 편집장 에이전트
-# =====================================================================
 def analyze_and_generate_content(raw_text, category):
-    """
-    Gemini 1.5 Pro를 사용하여 기사의 노이즈를 걸러내고, 
-    최고의 카드뉴스용 헤드라인, 훅, 핵심 요약, 캡션을 한 번에 JSON 형태로 뽑아냅니다.
-    """
-    # 안전장치: 너무 긴 텍스트는 자름
     safe_text = raw_text[:5000]
-    
-    # 100만 팔로워 전문가 페르소나 및 자율권(Autonomy) 부여 프롬프트
     system_instruction = f"""
     당신은 100만 팔로워를 보유한 글로벌 프리미엄 뉴스 매거진의 '수석 편집장'이자 '카드뉴스 마케팅 최고 전문가'입니다.
     현재 당신이 다루는 기사의 카테고리는 [{category.upper()}] 입니다.
@@ -79,14 +68,10 @@ def analyze_and_generate_content(raw_text, category):
             f"다음 웹 스크래핑 텍스트를 분석하여 완벽한 인스타그램 포스트용 JSON 데이터를 생성하십시오:\n\n{safe_text}",
             generation_config=genai.types.GenerationConfig(
                 response_mime_type="application/json",
-                temperature=0.4 # 창의성과 팩트의 균형
+                temperature=0.4 
             )
         )
-        
-        # JSON 파싱
-        result_json = json.loads(response.text)
-        return result_json
-
+        return json.loads(response.text)
     except Exception as e:
         print(f"❌ Gemini API 통신 오류: {e}")
         return None
@@ -95,18 +80,13 @@ def process_single_article(article_data, category):
     full_text = crawl_full_text(article_data['url'])
     if not full_text or len(full_text) < 300: return None
 
-    # Gemini 편집장에게 원문 전달 및 완벽한 결과물(JSON) 수령
     print(f"⏳ Gemini 1.5 Pro가 [{category.upper()}] 기사를 심층 분석 및 집필 중입니다...")
     ai_content = analyze_and_generate_content(full_text, category)
     
-    if not ai_content:
-        return None
+    if not ai_content: return None
 
     source_name = article_data['source']['name'] or "Global News"
-
-    # Gemini가 알아서 다 만들어준 완벽한 캡션 포장
-    summary = f"📢 [{ai_content['ko_title']}]\n\n"
-    summary += ai_content['summary_ko']
+    summary = f"📢 [{ai_content['ko_title']}]\n\n{ai_content['summary_ko']}"
 
     return {
         'ko_title': ai_content['ko_title'], 
@@ -159,8 +139,7 @@ def create_slides(article, prefix):
 
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         font_path = os.path.join(base_dir, "NanumSquareR.ttf")
-        if not os.path.exists(font_path):
-            font_path = "NanumSquareR.ttf"
+        if not os.path.exists(font_path): font_path = "NanumSquareR.ttf"
 
         is_default_font = False
         try:
@@ -172,7 +151,6 @@ def create_slides(article, prefix):
             cta_main_font = ImageFont.truetype(font_path, 55)
             cta_sub_font = ImageFont.truetype(font_path, 40)
         except Exception as e:
-            print(f"⚠️ 폰트 경고: {e} - 기본 폰트로 안전하게 대체합니다.")
             title_font = hook_font = core_font = id_font = source_font = cta_main_font = cta_sub_font = ImageFont.load_default()
             is_default_font = True
 
@@ -183,7 +161,7 @@ def create_slides(article, prefix):
 
         anchor_val = None if is_default_font else "mm"
 
-        # --- 1번 슬라이드 ---
+        # 1번 슬라이드
         s1 = raw_img.copy().resize((width, height), resample_filter).filter(ImageFilter.GaussianBlur(radius=10))
         s1 = ImageEnhance.Brightness(s1).enhance(0.35) 
         draw = ImageDraw.Draw(s1)
@@ -199,11 +177,10 @@ def create_slides(article, prefix):
             tw, th = draw.multiline_textsize(wrapped_title, font=title_font, spacing=25)
             
         draw.multiline_text(((width - tw)//2, (height//2 + 20) - (th//2)), wrapped_title, fill=(255, 255, 255), font=title_font, align="center", spacing=25)
-        
         draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd" if not is_default_font else None)
         s1.save(f"images/{prefix}_slide_0.png")
 
-        # --- 2번 슬라이드 ---
+        # 2번 슬라이드
         s2 = raw_img.copy().resize((width, height), resample_filter) 
         overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
         draw_overlay = ImageDraw.Draw(overlay)
@@ -221,19 +198,16 @@ def create_slides(article, prefix):
             cw, ch = draw_overlay.multiline_textsize(wrapped_core, font=core_font, spacing=15)
             
         draw_overlay.multiline_text(((width - cw)//2, height - 120 - ch), wrapped_core, fill=(255, 255, 255, 250), font=core_font, align="center", spacing=15)
-        
         s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
         s2.save(f"images/{prefix}_slide_1.png")
 
-        # --- 3번 슬라이드 ---
+        # 3번 슬라이드
         s3 = Image.new('RGB', (width, height), color=(255, 255, 255))
         draw_s3 = ImageDraw.Draw(s3)
-        
         pastel_color = (120, 150, 180) 
         draw_s3.text((width//2, 400), "오늘의 브리핑이 유익하셨나요?", fill=pastel_color, font=cta_main_font, anchor=anchor_val)
         draw_s3.text((width//2, 530), "좋아요  ·  댓글  ·  저장", fill=(180, 180, 180), font=cta_sub_font, anchor=anchor_val)
         draw_s3.text((width//2, 700), f"{INSTA_ID} 팔로우하기", fill=pastel_color, font=cta_sub_font, anchor=anchor_val)
-
         s3.save(f"images/{prefix}_slide_2.png")
         print(f"✅ [{prefix.upper()}] 슬라이드 생성 완료!")
 
@@ -242,27 +216,17 @@ def create_slides(article, prefix):
         traceback.print_exc()
         sys.exit(1)
 
-def upload_to_insta():
-    print("\n📤 [3단계: 인스타그램 최종 게시 (선택적 업로드)]")
+# [수정: 드롭다운 선택을 받아 정확히 해당 카테고리만 업로드]
+def upload_to_insta(prefix):
+    print(f"\n📤 [3단계: 인스타그램 최종 게시 - 타겟: {prefix.upper()}]")
     
-    biz_exists = os.path.exists("biz_summary.txt")
-    sci_exists = os.path.exists("sci_summary.txt")
-    
-    if biz_exists and sci_exists:
-        print("❌ [경고] 경제(biz)와 과학(sci) 파일이 둘 다 존재합니다!")
-        print("💡 깃허브에서 오늘 업로드하지 않을 카테고리의 '_summary.txt' 파일을 삭제한 뒤 다시 Upload를 돌려주세요.")
+    summary_file = f"{prefix}_summary.txt"
+    if not os.path.exists(summary_file):
+        print(f"❌ [오류] {summary_file} 파일이 없습니다. Generate가 정상적으로 완료되었는지 확인하세요.")
         sys.exit(1)
-    elif biz_exists:
-        prefix = "biz"
-        with open("biz_summary.txt", "r", encoding="utf-8") as f: summary_ko = f.read()
-    elif sci_exists:
-        prefix = "sci"
-        with open("sci_summary.txt", "r", encoding="utf-8") as f: summary_ko = f.read()
-    else:
-        print("❌ [오류] 업로드할 요약 파일(summary.txt)이 없습니다. Generate부터 다시 실행해주세요.")
-        sys.exit(1)
-
-    print(f"🚀 타겟 확인됨: [{prefix.upper()}] 카테고리를 업로드합니다.")
+        
+    with open(summary_file, "r", encoding="utf-8") as f: 
+        summary_ko = f.read()
 
     access_token = os.getenv('INSTA_ACCESS_TOKEN')
     account_id = os.getenv('INSTA_USER_ID')
@@ -312,27 +276,37 @@ def main():
             shutil.rmtree("images", ignore_errors=True)
         os.makedirs("images", exist_ok=True)
         
-        if os.path.exists("biz_summary.txt"): os.remove("biz_summary.txt")
-        if os.path.exists("sci_summary.txt"): os.remove("sci_summary.txt")
-        
         biz_data, sci_data = get_processed_news()
         
         if biz_data:
             create_slides(biz_data, "biz")
             with open("biz_summary.txt", "w", encoding="utf-8") as f: 
                 f.write(biz_data['summary_ko'])
-                f.flush()
-            print("🟢 경제(Biz) 콘텐츠 생성 완료! (biz_summary.txt 저장됨)")
+            # [추가] 콘솔에 미리보기 출력
+            print("\n" + "="*50)
+            print("📰 [BIZ(경제) 미리보기]")
+            print("="*50)
+            print(biz_data['summary_ko'])
+            print("="*50 + "\n")
             
         if sci_data:
             create_slides(sci_data, "sci")
             with open("sci_summary.txt", "w", encoding="utf-8") as f: 
                 f.write(sci_data['summary_ko'])
-                f.flush()
-            print("🔵 과학(Sci) 콘텐츠 생성 완료! (sci_summary.txt 저장됨)")
+            # [추가] 콘솔에 미리보기 출력
+            print("\n" + "="*50)
+            print("📰 [SCI(과학) 미리보기]")
+            print("="*50)
+            print(sci_data['summary_ko'])
+            print("="*50 + "\n")
             
     elif mode == "--upload":
-        upload_to_insta()
+        # 사용자가 선택한 카테고리를 인자로 받음
+        if len(sys.argv) < 3:
+            print("❌ 업로드할 카테고리(biz 또는 sci)를 지정해주세요.")
+            sys.exit(1)
+        category = sys.argv[2]
+        upload_to_insta(category)
 
 if __name__ == "__main__":
     main()

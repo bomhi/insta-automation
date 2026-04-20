@@ -31,7 +31,6 @@ JUNK_PHRASES = [
 ]
 SKIP_KEYWORDS = ['AP Photo', 'AP 사진', 'Photo/', 'Photograph', 'Caption', '©', '출처:', '연설하고', '손짓을', '재배포 금지']
 
-# [수정] 본문용 기계적 템플릿 전면 삭제! 표지용 HOOK과 마지막 질문만 남김.
 BIZ_HOOK_TAGS = ["GLOBAL ECONOMY HOT ISSUE", "비즈니스 필독 지식", "오늘의 마켓 하이라이트"]
 SCI_HOOK_TAGS = ["GLOBAL SCIENCE TECH", "인류를 바꿀 새로운 발견", "오늘의 테크/사이언스"]
 
@@ -60,7 +59,14 @@ def crawl_full_text(url):
         return None
 
 def smart_translate_title(text):
-    prompt = f"As an expert Instagram news editor, summarize this English headline into a highly clickable, natural Korean magazine headline. Rule 1: Length must be 15 to 30 characters. Rule 2: Form a natural phrase, NOT just disconnected keywords. Rule 3: Must end with a noun (e.g., '급락', '경고', '발표', '실현', '성공'). Output ONLY the Korean text. Text: {text}"
+    prompt = f"""
+    As an expert Instagram news editor, write a punchy, clickable Korean headline for this news. 
+    Rule 1: Length MUST be 15 to 25 characters. 
+    Rule 2: Capture the CORE EVENT. Do not just translate literally.
+    Rule 3: MUST end with a NOUN (e.g., 성취, 발표, 급락, 무산, 논란). NEVER end with verbs.
+    Example: "일론 머스크, 암 투병 소녀의 마지막 소원 성취"
+    Output ONLY the Korean text. Text: {text}
+    """
     ko_title = ""
     for _ in range(3):
         try:
@@ -89,18 +95,14 @@ def smart_translate_title(text):
             ko_title = safe_title.strip() + "..."
     return ko_title
 
-# [초강력 업데이트: AI 완전 자율 집필 (템플릿 의존 탈피)]
 def extract_and_summarize_article(text, category="biz"):
     prompt = f"""
-    You are a Chief Editor for a premium Korean magazine. Read the following scraped text, identify the ONE main story, and write a cohesive Instagram post.
+    You are a Chief Editor for a premium Korean magazine. Summarize the MAIN story into an Instagram post.
     
     CRITICAL RULES:
-    1. IGNORE unrelated noise, sidebars, or abrupt topic changes.
-    2. Write EXACTLY 3 paragraphs separated by double newlines (\\n\\n).
-       - Paragraph 1: A natural opening sentence that sets the MOOD of the story (e.g., heartwarming, urgent, scientific breakthrough). NEVER use generic stock market phrases for human-interest stories.
-       - Paragraph 2: The core facts of the story (1-2 sentences).
-       - Paragraph 3: A natural concluding insight based ONLY on this specific story.
-    3. Use polite and formal Korean ('~습니다', '~합니다'). NEVER use '~했다' or informal text.
+    1. Write EXACTLY 3 paragraphs separated by double newlines (\\n\\n).
+    2. TONE & MANNER: You MUST end EVERY sentence with polite/formal Korean ('~습니다.', '~합니다.', '~입니다.'). NEVER use informal endings like '~다.', '~이다.', '~었다.', '~남긴다.'.
+    3. Paragraph 1: Mood-setting intro. Paragraph 2: Core facts. Paragraph 3: Concluding insight.
     4. For {category.upper()}, use professional terminology.
     
     Output ONLY the Korean text.
@@ -128,7 +130,6 @@ def process_single_article(article_data, category):
     en_title = article_data['title'].split(' - ')[0]
     ko_title = smart_translate_title(en_title)
     
-    # AI가 3문단으로 완벽하게 기승전결을 작성함
     raw_ai_summary = extract_and_summarize_article(full_text[:3000], category)
     
     ko_full_text = raw_ai_summary.replace("했다.", "했습니다.").replace("한다.", "합니다.")\
@@ -137,7 +138,11 @@ def process_single_article(article_data, category):
                                  .replace("나타났다.", "나타났습니다.").replace("예정이다.", "예정입니다.")\
                                  .replace("전망이다.", "전망입니다.").replace("보인다.", "보입니다.")\
                                  .replace("않았다.", "않았습니다.").replace("없다.", "없습니다.")\
-                                 .replace("있다.", "있습니다.").replace("기록했다.", "기록했습니다.")
+                                 .replace("있다.", "있습니다.").replace("기록했다.", "기록했습니다.")\
+                                 .replace("주었다.", "주었습니다.").replace("남긴다.", "남깁니다.")\
+                                 .replace("연결되었다.", "연결되었습니다.").replace("것이다.", "것입니다.")\
+                                 .replace("나눈다.", "나눕니다.").replace("보여준다.", "보여줍니다.")
+
     if category == "biz":
         ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한").replace("다이빙을 공유", "주가 급락")
     elif category == "sci":
@@ -145,10 +150,8 @@ def process_single_article(article_data, category):
 
     source_name = article_data['source']['name'] or "Global News"
     
-    # AI가 넘겨준 3단락 분리
     paragraphs = [p.strip() for p in ko_full_text.split('\n\n') if p.strip() and not any(j in p for j in JUNK_PHRASES)]
     
-    # 만약 AI가 룰을 어기고 줄바꿈을 안 했다면 문장 단위로 분할하여 안전망 작동
     if len(paragraphs) < 3:
         sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 15 and not any(j in s for j in JUNK_PHRASES)]
         if len(sentences) < 2: return None
@@ -158,8 +161,12 @@ def process_single_article(article_data, category):
         if not conclusion_text: conclusion_text = "앞으로의 전개가 어떻게 이어질지 귀추가 주목됩니다."
     else:
         intro_text = paragraphs[0]
-        core_message = paragraphs[1]  # 카드뉴스 이미지(2번 슬라이드)에 박힐 진짜 핵심 팩트
+        core_message = paragraphs[1] 
         conclusion_text = paragraphs[2]
+
+    if not intro_text.endswith('.'): intro_text += '.'
+    if not core_message.endswith('.'): core_message += '.'
+    if not conclusion_text.endswith('.'): conclusion_text += '.'
 
     if category == "biz":
         hook_tag = random.choice(BIZ_HOOK_TAGS)
@@ -168,7 +175,6 @@ def process_single_article(article_data, category):
 
     engagement_text = random.choice(ENGAGEMENT_QUESTIONS)
 
-    # 캡션(본문) 조립 - 템플릿 없이 AI가 짠 흐름 그대로!
     summary = f"📢 [{ko_title}]\n\n"
     summary += f"{intro_text}\n\n"
     summary += f"{core_message}\n\n"
@@ -235,6 +241,7 @@ def create_slides(article, prefix):
     except:
         title_font = hook_font = core_font = id_font = source_font = cta_main_font = cta_sub_font = ImageFont.load_default()
 
+    # --- 1번 슬라이드 ---
     s1 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(radius=10))
     s1 = ImageEnhance.Brightness(s1).enhance(0.35) 
     draw = ImageDraw.Draw(s1)
@@ -248,22 +255,27 @@ def create_slides(article, prefix):
     draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd")
     s1.save(f"images/{prefix}_slide_0.png")
 
+    # --- 2번 슬라이드 (수정됨: 그라데이션 및 텍스트 하단 배치) ---
     s2 = raw_img.copy().resize((width, height), Image.Resampling.LANCZOS) 
     overlay = Image.new('RGBA', s2.size, (0, 0, 0, 0))
     draw_overlay = ImageDraw.Draw(overlay)
     
+    # 1. 그라데이션 강도 증가 (최대 255 완전 블랙)
     start_y = int(height * 0.40)
     for y in range(start_y, height):
-        alpha = int(240 * ((y - start_y) / (height - start_y)))
+        alpha = int(255 * ((y - start_y) / (height - start_y)))
         draw_overlay.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
     
     wrapped_core = textwrap.fill(article['core_message'], width=24)
-    text_y = int(height * 0.75)
-    draw_overlay.multiline_text((width//2, text_y), wrapped_core, fill=(255, 255, 255, 250), font=core_font, anchor="mm", align="center", spacing=15)
+    
+    # 2. 텍스트 바닥 고정 (mb 앵커 사용, 밑에서 120px 띄움)
+    text_y = height - 120
+    draw_overlay.multiline_text((width//2, text_y), wrapped_core, fill=(255, 255, 255, 250), font=core_font, anchor="mb", align="center", spacing=15)
     
     s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
     s2.save(f"images/{prefix}_slide_1.png")
 
+    # --- 3번 슬라이드 ---
     s3 = Image.new('RGB', (width, height), color=(255, 255, 255))
     draw_s3 = ImageDraw.Draw(s3)
     

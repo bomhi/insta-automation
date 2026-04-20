@@ -38,40 +38,46 @@ def crawl_full_text(url):
     except:
         return None
 
+# [강력 업데이트: 전 세계 100% 호환 범용 모델(gemini-pro)로 우회 및 프롬프트 통합]
 def analyze_and_generate_content(raw_text, category):
     safe_text = raw_text[:5000]
-    system_instruction = f"""
+    
+    prompt = f"""
     당신은 100만 팔로워를 보유한 글로벌 프리미엄 뉴스 매거진의 '수석 편집장'이자 '카드뉴스 마케팅 최고 전문가'입니다.
     현재 당신이 다루는 기사의 카테고리는 [{category.upper()}] 입니다.
 
     [당신의 권한과 목표]
-    1. 당신은 제공된 거친 웹 텍스트(광고, 관련 기사 링크 등 노이즈 포함)에서 '단 하나의 가장 중요한 메인 스토리'만 완벽하게 발라낼 수 있는 권한과 능력이 있습니다.
-    2. 과거의 기계적인 3문단 규칙이나 하드코딩된 템플릿에 얽매일 필요 없습니다. 기사의 성격(긴급한 경제 위기, 감동적인 휴먼 스토리, 경이로운 과학 발견 등)을 스스로 판단하여, 가장 몰입감 있고 세련된 톤앤매너로 자유롭게 글을 구성하십시오.
-    3. 단, 프리미엄 매거진의 품격을 위해 무조건 정중하고 전문적인 한국어 존댓말('~습니다', '~합니다')을 사용하십시오. 신문체('~다', '~이다')는 절대 금지합니다.
+    1. 제공된 웹 텍스트(광고, 관련 기사 링크 등 노이즈 포함)에서 '단 하나의 가장 중요한 메인 스토리'만 완벽하게 발라내십시오.
+    2. 기사의 성격(긴급한 경제 위기, 감동적인 휴먼 스토리, 경이로운 과학 발견 등)을 파악하여, 가장 몰입감 있고 세련된 톤앤매너로 자유롭게 글을 구성하십시오.
+    3. 단, 무조건 정중하고 전문적인 한국어 존댓말('~습니다', '~합니다')을 사용하십시오. 신문체('~다', '~이다')는 절대 금지합니다.
 
-    [출력 형식: 반드시 아래 JSON 포맷만을 출력하십시오]
+    [출력 형식: 반드시 아래 JSON 포맷만을 출력하십시오. 다른 부가 설명은 절대 하지 마십시오.]
     {{
-        "ko_title": "15~25자 사이의 압도적인 헤드라인 (반드시 명사형으로 끝낼 것. 예: 급락, 성취, 발견)",
-        "hook_tag": "10자 내외의 시선을 끄는 상단 태그 (예: GLOBAL ECONOMY, TECH INSIGHT, HUMAN STORY)",
+        "ko_title": "15~25자 사이의 압도적인 헤드라인 (명사형으로 끝낼 것)",
+        "hook_tag": "10자 내외의 시선을 끄는 상단 태그",
         "core_message": "카드뉴스 이미지 정중앙에 박힐 1~2문장의 가장 치명적이고 중요한 팩트 요약",
-        "summary_ko": "인스타그램 본문에 들어갈 완벽한 캡션. (도입부, 스토리텔링, 통찰력 있는 결론, 독자의 댓글을 유도하는 질문 포함. 적절한 이모지 사용)"
+        "summary_ko": "인스타그램 본문에 들어갈 완벽한 캡션. (도입부, 스토리텔링, 통찰, 질문 포함. 적절한 이모지 사용)"
     }}
+
+    [기사 원문]
+    {safe_text}
     """
 
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        system_instruction=system_instruction
-    )
+    # 가장 안정적이고 제한이 없는 글로벌 범용 모델 호출
+    model = genai.GenerativeModel("gemini-pro")
 
     try:
-        response = model.generate_content(
-            f"다음 웹 스크래핑 텍스트를 분석하여 완벽한 인스타그램 포스트용 JSON 데이터를 생성하십시오:\n\n{safe_text}",
-            generation_config=genai.types.GenerationConfig(
-                response_mime_type="application/json",
-                temperature=0.4 
-            )
-        )
-        return json.loads(response.text)
+        response = model.generate_content(prompt)
+        
+        # AI가 마크다운(```json) 기호를 붙여서 줄 경우를 대비한 강력한 클렌징
+        clean_json_str = response.text.strip()
+        if clean_json_str.startswith('```json'):
+            clean_json_str = clean_json_str[7:-3].strip()
+        elif clean_json_str.startswith('```'):
+            clean_json_str = clean_json_str[3:-3].strip()
+            
+        return json.loads(clean_json_str)
+
     except Exception as e:
         print(f"❌ Gemini API 통신 오류: {e}")
         return None
@@ -80,7 +86,7 @@ def process_single_article(article_data, category):
     full_text = crawl_full_text(article_data['url'])
     if not full_text or len(full_text) < 300: return None
 
-    print(f"⏳ Gemini 1.5 Pro가 [{category.upper()}] 기사를 심층 분석 및 집필 중입니다...")
+    print(f"⏳ Gemini Pro가 [{category.upper()}] 기사를 심층 분석 및 집필 중입니다...")
     ai_content = analyze_and_generate_content(full_text, category)
     
     if not ai_content: return None
@@ -216,7 +222,6 @@ def create_slides(article, prefix):
         traceback.print_exc()
         sys.exit(1)
 
-# [수정: 드롭다운 선택을 받아 정확히 해당 카테고리만 업로드]
 def upload_to_insta(prefix):
     print(f"\n📤 [3단계: 인스타그램 최종 게시 - 타겟: {prefix.upper()}]")
     
@@ -282,7 +287,6 @@ def main():
             create_slides(biz_data, "biz")
             with open("biz_summary.txt", "w", encoding="utf-8") as f: 
                 f.write(biz_data['summary_ko'])
-            # [추가] 콘솔에 미리보기 출력
             print("\n" + "="*50)
             print("📰 [BIZ(경제) 미리보기]")
             print("="*50)
@@ -293,7 +297,6 @@ def main():
             create_slides(sci_data, "sci")
             with open("sci_summary.txt", "w", encoding="utf-8") as f: 
                 f.write(sci_data['summary_ko'])
-            # [추가] 콘솔에 미리보기 출력
             print("\n" + "="*50)
             print("📰 [SCI(과학) 미리보기]")
             print("="*50)
@@ -301,7 +304,6 @@ def main():
             print("="*50 + "\n")
             
     elif mode == "--upload":
-        # 사용자가 선택한 카테고리를 인자로 받음
         if len(sys.argv) < 3:
             print("❌ 업로드할 카테고리(biz 또는 sci)를 지정해주세요.")
             sys.exit(1)

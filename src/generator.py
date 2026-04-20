@@ -32,7 +32,7 @@ JUNK_PHRASES = [
 SKIP_KEYWORDS = ['AP Photo', 'AP 사진', 'Photo/', 'Photograph', 'Caption', '©', '출처:', '연설하고', '손짓을', '재배포 금지']
 
 # =====================================================================
-# [수정: 카테고리별 템플릿 완벽 분리 (경제 vs 과학)]
+# 카테고리별 템플릿 완벽 분리 (경제 vs 과학)
 # =====================================================================
 
 # 1. 경제/비즈니스 전용 템플릿
@@ -43,17 +43,17 @@ BIZ_INTROS = [
     "시장의 예상을 뛰어넘는 전개로 인해 전 세계적인 관심이 쏠리고 있는 상황입니다."
 ]
 BIZ_TRANSITIONS = [
-    "특히 이번 과정에서 나타난 특징적인 요소들은 기존의 흐름과는 완전히 다른 양상을 보이고 있어 주목할 만합니다.",
-    "무엇보다 이면에 자리한 전략적 의도와 시장의 즉각적인 반응이 향후 흐름을 가늠할 중요한 잣대가 될 것으로 보입니다.",
-    "이러한 움직임은 새로운 주도권을 쥐기 위한 글로벌 기업들의 발빠른 행보로 풀이됩니다."
+    "이러한 흐름은 기존의 판도를 뒤흔들며 새로운 시장의 패러다임을 제시하고 있어 주목할 만합니다.",
+    "이면에 자리한 전략적 의도와 즉각적인 시장의 반응이 향후 흐름을 가늠할 중요한 잣대가 될 것으로 보입니다.",
+    "이는 단순한 소식을 넘어, 새로운 주도권을 쥐기 위한 글로벌 주요 주체들의 발빠른 행보로 풀이됩니다."
 ]
 BIZ_CONCLUSIONS = [
     "앞으로의 구체적인 대응 방식과 후속 조치가 어떤 실질적 결과를 낳을지 예의주시해야 할 시점입니다.",
-    "기대와 우려가 교차하는 가운데, 시장에 어떻게 안착할 수 있을지가 앞으로의 핵심 관건입니다.",
-    "시장의 변동성이 커지는 만큼, 관련 동향을 지속적으로 모니터링하며 리스크를 관리하는 것이 중요해 보입니다."
+    "기대와 우려가 교차하는 가운데, 시장에 어떻게 성공적으로 안착할 수 있을지가 핵심 관건입니다.",
+    "시장의 변동성이 커지는 만큼, 관련 동향을 지속적으로 모니터링하며 전략적인 접근이 필요해 보입니다."
 ]
 
-# 2. 과학/IT 전용 템플릿 (블랙홀 제트기 사태 방지!)
+# 2. 과학/IT 전용 템플릿
 SCI_HOOK_TAGS = ["GLOBAL SCIENCE TECH", "인류를 바꿀 새로운 발견", "오늘의 테크/사이언스"]
 SCI_INTROS = [
     "인류의 지평을 넓히는 새로운 연구 결과가 발표되며 전 세계 학계의 이목이 집중되고 있습니다.",
@@ -62,21 +62,21 @@ SCI_INTROS = [
 ]
 SCI_TRANSITIONS = [
     "이번 발견이 가지는 진정한 의미는 기존 학계의 패러다임을 뒤흔들 만큼 혁신적이라는 데 있습니다.",
-    "연구진이 밝혀낸 구체적인 데이터와 메커니즘은 관련 분야에 엄청난 파급력을 미칠 것으로 예상됩니다.",
-    "이러한 기술적/학문적 도약은 미래 산업은 물론 우리의 일상에도 깊은 영향을 줄 것으로 보입니다."
+    "밝혀진 구체적인 데이터와 메커니즘은 관련 분야의 후속 연구에 엄청난 파급력을 미칠 것으로 예상됩니다.",
+    "이러한 학문적 도약은 미래 산업은 물론 인류의 삶의 질을 근본적으로 향상시킬 가능성을 열어두고 있습니다."
 ]
 SCI_CONCLUSIONS = [
-    "이번 성과를 발판 삼아 앞으로 어떤 추가적인 비밀들이 밝혀질지 전 세계가 기대하고 있습니다.",
-    "새로운 한계를 돌파한 이번 발견이 향후 인류의 삶을 어떻게 변화시킬지 지속적인 관심이 필요해 보입니다.",
-    "연구의 완성도를 높여 실제 우리 삶과 미래 기술에 완벽히 적용될 수 있을지 귀추가 주목됩니다."
+    "이번 성과를 발판 삼아 앞으로 어떤 추가적인 우주의 비밀들이 밝혀질지 전 세계가 기대하고 있습니다.",
+    "새로운 한계를 돌파한 이번 발견이 향후 실생활에 어떻게 적용될지 지속적인 관심이 필요해 보입니다.",
+    "관련 연구가 더욱 고도화되어 실제 미래 기술로 완벽히 구현될 수 있을지 귀추가 주목됩니다."
 ]
 
 # 공통 템플릿
-BODY_PREFIXES = ["구체적인 내용을 살펴보면,", "이번 사안의 핵심을 요약하자면,", "자세한 내막을 들여다보면,"]
+BODY_PREFIXES = ["자세한 내막을 살펴보면,", "이번 사안의 핵심을 짚어보면,", "주요 보도와 분석을 종합해보면,"]
 ENGAGEMENT_QUESTIONS = [
-    "여러분은 이 소식에 대해 어떻게 생각하시나요? 댓글로 의견을 남겨주세요!👇",
-    "이 놀라운 이슈가 우리의 미래를 어떻게 바꿀까요? 여러분의 생각을 들려주세요!💬",
-    "주변에 알리고 싶다면 저장과 공유를 잊지 마세요!🔖"
+    "여러분은 이 소식에 대해 어떻게 생각하시나요? 댓글로 자유롭게 의견을 남겨주세요!👇",
+    "이 놀라운 이슈가 우리의 일상과 미래를 어떻게 바꿀까요? 여러분의 생각을 들려주세요!💬",
+    "유익하셨나요? 주변에 알리고 싶다면 저장과 공유를 잊지 마세요!🔖"
 ]
 # =====================================================================
 
@@ -111,7 +111,6 @@ def smart_translate_title(text):
                 break
         except Exception:
             time.sleep(1)
-            pass
     
     if not ko_title:
         ko_title = GoogleTranslator(source='en', target='ko').translate(text)
@@ -129,26 +128,36 @@ def smart_translate_title(text):
             ko_title = safe_title.strip() + "..."
     return ko_title
 
-# [수정: 카테고리별 맞춤 AI 프롬프트 (분야별 지능화)]
-def smart_translate_body(text, category="biz"):
-    if category == "sci":
-        # 과학/천문학 전용 뇌 장착 (제트기 사태 완벽 차단)
-        prompt = f"Translate this SCIENCE/TECH/ASTRONOMY news into a highly professional Korean journalistic style. CRITICAL RULE: Translate 'jet' as '물질 제트' or '제트 분출류', NEVER as '제트기' (airplane). Use precise scientific terminology. MUST use polite and formal Korean endings ('~습니다', '~합니다') exclusively. Output ONLY the Korean text. Text: {text}"
-    else:
-        # 경제/비즈니스 전용 뇌 장착
-        prompt = f"Translate this FINANCIAL/BUSINESS news into a highly professional Korean journalistic style. Accurately translate business idioms (e.g., 'shares dive' -> '주가 급락'). MUST use polite and formal Korean endings ('~습니다', '~합니다') exclusively. Output ONLY the Korean text. Text: {text}"
+# [초강력 업데이트: AI 문맥 정제 및 3문장 강제 추출 엔진]
+def extract_and_summarize_article(text, category="biz"):
+    prompt = f"""
+    You are a Chief Editor for a premium Korean magazine. Extract and summarize the MAIN story from the following scraped web text.
+    The text may contain unrelated news snippets, ads, or sidebar links (e.g., a story about Elon Musk mixed with a Senator's unrelated interview).
+    
+    CRITICAL RULES:
+    1. Identify the ONE primary topic. Completely IGNORE unrelated noise, sidebars, or abrupt topic changes.
+    2. Write a logically flowing, engaging narrative in EXACTLY 3 sentences.
+    3. SEPARATE each sentence with a double newline (\\n\\n). This is crucial.
+    4. Use polite and formal Korean ('~습니다', '~합니다'). NEVER use informal text ('~했다', '~이다').
+    5. For {category.upper()}, use professional terminology (e.g., translate 'shares dive' as '주가 급락', 'jet' as '제트 분출류').
+    
+    Output ONLY the 3 Korean sentences.
+    Text: {text}
+    """
 
-    for _ in range(2):
+    for _ in range(3):
         try:
             res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=15)
             res.raise_for_status()
             ko_text = res.text.strip()
-            if ko_text and len(ko_text) > 10 and "Translate" not in ko_text:
+            # 검증: AI가 번역 지시문을 그대로 뱉지 않았고, 적절한 길이인지 확인
+            if ko_text and len(ko_text) > 30 and "Translate" not in ko_text and "Rule" not in ko_text:
                 return ko_text
         except Exception:
             time.sleep(1)
-            pass
-    return GoogleTranslator(source='en', target='ko').translate(text)
+            
+    # AI 모두 실패 시 구글 번역기 폴백 (안전망)
+    return GoogleTranslator(source='en', target='ko').translate(text[:800])
 
 def process_single_article(article_data, category):
     full_text = crawl_full_text(article_data['url'])
@@ -160,38 +169,38 @@ def process_single_article(article_data, category):
     en_title = article_data['title'].split(' - ')[0]
     ko_title = smart_translate_title(en_title)
     
-    # 카테고리를 전달하여 맞춤 번역 수행
-    ko_full_text = smart_translate_body(full_text[:1500], category)
+    # [수정] 섞인 기사 방지용: AI에게 문맥 정제 및 3문장 요약 요청
+    raw_ai_summary = extract_and_summarize_article(full_text[:3000], category)
     
-    # 20여 가지 반말(신문체) -> 존댓말 강제 변환 공통 패치
-    ko_full_text = ko_full_text.replace("했다.", "했습니다.").replace("한다.", "합니다.")\
-                               .replace("된다.", "됩니다.").replace("이다.", "입니다.")\
-                               .replace("밝혔다.", "밝혔습니다.").replace("말했다.", "말했습니다.")\
-                               .replace("나타났다.", "나타났습니다.").replace("예정이다.", "예정입니다.")\
-                               .replace("전망이다.", "전망입니다.").replace("보인다.", "보입니다.")\
-                               .replace("않았다.", "않았습니다.").replace("없다.", "없습니다.")\
-                               .replace("있다.", "있습니다.").replace("기록했다.", "기록했습니다.")\
-                               .replace("발표했다.", "발표했습니다.").replace("전망했다.", "전망했습니다.")\
-                               .replace("분석했다.", "분석했습니다.").replace("성공했다.", "성공했습니다.")\
-                               .replace("급락했다.", "급락했습니다.").replace("상승했다.", "상승했습니다.")\
-                               .replace("하락했다.", "하락했습니다.").replace("증가했다.", "증가했습니다.")\
-                               .replace("감소했다.", "감소했습니다.")
-
-    # [분야별 특수 교정망]
+    # 이중 살균 (존댓말 강제 및 오역 방어)
+    ko_full_text = raw_ai_summary.replace("했다.", "했습니다.").replace("한다.", "합니다.")\
+                                 .replace("된다.", "됩니다.").replace("이다.", "입니다.")\
+                                 .replace("밝혔다.", "밝혔습니다.").replace("말했다.", "말했습니다.")\
+                                 .replace("나타났다.", "나타났습니다.").replace("예정이다.", "예정입니다.")\
+                                 .replace("전망이다.", "전망입니다.").replace("보인다.", "보입니다.")\
+                                 .replace("않았다.", "않았습니다.").replace("없다.", "없습니다.")\
+                                 .replace("있다.", "있습니다.").replace("기록했다.", "기록했습니다.")
     if category == "biz":
-        ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한").replace("수익 보고서", "실적 보고서")\
-                                   .replace("다이빙을 공유", "주가 급락")
+        ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한").replace("다이빙을 공유", "주가 급락")
     elif category == "sci":
-        ko_full_text = ko_full_text.replace("제트기", "제트 분출류") # 번역기가 미쳐서 제트기를 뱉어도 강제 제압
+        ko_full_text = ko_full_text.replace("제트기", "제트 분출류")
 
     source_name = article_data['source']['name'] or "Global News"
     
-    sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 30 and not any(j in s for j in JUNK_PHRASES)]
-    if len(sentences) < 3: return None
+    # [수정] 마침표가 아닌 줄바꿈(\n\n) 기준으로 정확히 분리하여 노이즈 원천 차단
+    sentences = [s.strip() for s in ko_full_text.split('\n\n') if s.strip() and not any(j in s for j in JUNK_PHRASES)]
+    
+    # AI가 줄바꿈을 안 지켰을 경우 기존 마침표 분할 방식으로 fallback
+    if len(sentences) < 2:
+        sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 20 and not any(j in s for j in JUNK_PHRASES)]
+        
+    if len(sentences) < 2: return None
 
+    # 슬라이드 2번에 들어갈 가장 핵심이 되는 첫 문장
     core_message = sentences[0]
+    if not core_message.endswith('.'): core_message += '.'
 
-    # [수정: 카테고리에 맞는 템플릿 선택]
+    # 카테고리에 맞는 템플릿 선택
     if category == "biz":
         intro_text = random.choice(BIZ_INTROS)
         trans_text = random.choice(BIZ_TRANSITIONS)
@@ -206,12 +215,14 @@ def process_single_article(article_data, category):
     body_prefix = random.choice(BODY_PREFIXES)
     engagement_text = random.choice(ENGAGEMENT_QUESTIONS)
 
+    # 본문(Story) 조립 - AI가 정제한 흐름 그대로 이어가기
+    story_body = " ".join(sentences)
+    if not story_body.endswith('.'): story_body += '.'
+
     summary = f"📢 [{ko_title}]\n\n"
     summary += f"{intro_text}\n\n"
-    body_text = ". ".join(sentences[0:3])
-    summary += f"{body_prefix} {body_text}. {trans_text}\n\n"
-    conclusion_text = sentences[3] if len(sentences) > 3 else sentences[-1]
-    summary += f"{conclusion_text}. {concl_text}\n\n"
+    summary += f"{body_prefix} {story_body} {trans_text}\n\n"
+    summary += f"{concl_text}\n\n"
     summary += f"💡 Q. {engagement_text}"
 
     return {
@@ -237,13 +248,13 @@ def get_processed_news():
         b_res = requests.get(b_url).json()
         for a in b_res.get('articles', []):
             if a.get('urlToImage') and a.get('url'):
-                biz_result = process_single_article(a, "biz") # 카테고리 전달
+                biz_result = process_single_article(a, "biz")
                 if biz_result: break
                 
         s_res = requests.get(s_url).json()
         for a in s_res.get('articles', []):
             if a.get('urlToImage') and a.get('url'):
-                sci_result = process_single_article(a, "sci") # 카테고리 전달
+                sci_result = process_single_article(a, "sci")
                 if sci_result: break
     except Exception as e:
         print(f"❌ 뉴스 리스트 가져오기 실패: {e}")

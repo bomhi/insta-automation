@@ -7,7 +7,6 @@ import re
 import shutil
 import json
 import traceback
-import google.generativeai as genai
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from bs4 import BeautifulSoup
@@ -15,10 +14,9 @@ from bs4 import BeautifulSoup
 # [설정]
 INSTA_ID = "@world_folio"
 
+# [수정] 라이브러리 의존성 제거, 순수 API 키만 가져옵니다.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-else:
+if not GEMINI_API_KEY:
     print("❌ GEMINI_API_KEY가 설정되지 않았습니다. GitHub Secrets를 확인해주세요.")
     sys.exit(1)
 
@@ -38,22 +36,23 @@ def crawl_full_text(url):
     except:
         return None
 
-# [강력 업데이트: 전 세계 100% 호환 범용 모델(gemini-pro)로 우회 및 프롬프트 통합]
+# [초강력 업데이트: 구글 라이브러리를 쓰지 않는 REST API 직접 호출 방식]
 def analyze_and_generate_content(raw_text, category):
     safe_text = raw_text[:5000]
     
     prompt = f"""
+    [시스템 지시사항]
     당신은 100만 팔로워를 보유한 글로벌 프리미엄 뉴스 매거진의 '수석 편집장'이자 '카드뉴스 마케팅 최고 전문가'입니다.
     현재 당신이 다루는 기사의 카테고리는 [{category.upper()}] 입니다.
 
     [당신의 권한과 목표]
     1. 제공된 웹 텍스트(광고, 관련 기사 링크 등 노이즈 포함)에서 '단 하나의 가장 중요한 메인 스토리'만 완벽하게 발라내십시오.
     2. 기사의 성격(긴급한 경제 위기, 감동적인 휴먼 스토리, 경이로운 과학 발견 등)을 파악하여, 가장 몰입감 있고 세련된 톤앤매너로 자유롭게 글을 구성하십시오.
-    3. 단, 무조건 정중하고 전문적인 한국어 존댓말('~습니다', '~합니다')을 사용하십시오. 신문체('~다', '~이다')는 절대 금지합니다.
+    3. 무조건 정중하고 전문적인 한국어 존댓말('~습니다', '~합니다')을 사용하십시오. 신문체('~다', '~이다')는 절대 금지합니다.
 
-    [출력 형식: 반드시 아래 JSON 포맷만을 출력하십시오. 다른 부가 설명은 절대 하지 마십시오.]
+    [출력 형식: 반드시 아래 JSON 포맷만을 출력하십시오. 다른 부가 설명은 절대 금지합니다.]
     {{
-        "ko_title": "15~25자 사이의 압도적인 헤드라인 (명사형으로 끝낼 것)",
+        "ko_title": "15~25자 사이의 압도적인 헤드라인 (반드시 명사형으로 끝낼 것. 예: 급락, 성취, 발견)",
         "hook_tag": "10자 내외의 시선을 끄는 상단 태그",
         "core_message": "카드뉴스 이미지 정중앙에 박힐 1~2문장의 가장 치명적이고 중요한 팩트 요약",
         "summary_ko": "인스타그램 본문에 들어갈 완벽한 캡션. (도입부, 스토리텔링, 통찰, 질문 포함. 적절한 이모지 사용)"
@@ -63,30 +62,45 @@ def analyze_and_generate_content(raw_text, category):
     {safe_text}
     """
 
-    # 가장 안정적이고 제한이 없는 글로벌 범용 모델 호출
-    model = genai.GenerativeModel("gemini-pro")
+    # 제미나이 1.5 Flash 최신 모델 서버 다이렉트 주소
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    
+    headers = {'Content-Type': 'application/json'}
+    data = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "temperature": 0.4
+        }
+    }
 
     try:
-        response = model.generate_content(prompt)
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        response.raise_for_status() # 에러 발생 시 즉시 감지
         
-        # AI가 마크다운(```json) 기호를 붙여서 줄 경우를 대비한 강력한 클렌징
-        clean_json_str = response.text.strip()
-        if clean_json_str.startswith('```json'):
-            clean_json_str = clean_json_str[7:-3].strip()
-        elif clean_json_str.startswith('```'):
-            clean_json_str = clean_json_str[3:-3].strip()
+        res_json = response.json()
+        ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
+        
+        # 클렌징 (마크다운 찌꺼기 제거)
+        clean_str = ai_text.strip()
+        if clean_str.startswith('```json'):
+            clean_str = clean_str[7:-3].strip()
+        elif clean_str.startswith('```'):
+            clean_str = clean_str[3:-3].strip()
             
-        return json.loads(clean_json_str)
+        return json.loads(clean_str)
 
     except Exception as e:
-        print(f"❌ Gemini API 통신 오류: {e}")
+        print(f"❌ Gemini 다이렉트 통신 오류: {e}")
+        if 'response' in locals():
+            print(f"상세 에러 내역: {response.text}")
         return None
 
 def process_single_article(article_data, category):
     full_text = crawl_full_text(article_data['url'])
     if not full_text or len(full_text) < 300: return None
 
-    print(f"⏳ Gemini Pro가 [{category.upper()}] 기사를 심층 분석 및 집필 중입니다...")
+    print(f"⏳ Gemini 1.5 Flash가 [{category.upper()}] 기사를 심층 분석 및 집필 중입니다...")
     ai_content = analyze_and_generate_content(full_text, category)
     
     if not ai_content: return None

@@ -218,7 +218,6 @@ def get_processed_news():
 
     return biz_result, sci_result
 
-# [강력 업데이트: 크래시 방어막 및 폰트 안전망 탑재]
 def create_slides(article, prefix):
     print(f"\n🎨 [2단계: {prefix.upper()} 슬라이드 3장 제작 중...]")
     width, height = 1080, 1080
@@ -232,11 +231,10 @@ def create_slides(article, prefix):
         except:
             raw_img = Image.new('RGB', (width, height), color=(35, 40, 45))
 
-        # [안전망 1] 폰트 파일 절대경로 추적기
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         font_path = os.path.join(base_dir, "NanumSquareR.ttf")
         if not os.path.exists(font_path):
-            font_path = "NanumSquareR.ttf" # 루트 디렉토리 2차 시도
+            font_path = "NanumSquareR.ttf"
 
         is_default_font = False
         try:
@@ -250,27 +248,33 @@ def create_slides(article, prefix):
         except Exception as e:
             print(f"⚠️ 폰트 경고: {e} - 기본 폰트로 안전하게 대체합니다.")
             title_font = hook_font = core_font = id_font = source_font = cta_main_font = cta_sub_font = ImageFont.load_default()
-            is_default_font = True # 기본 폰트 크래시 방지 플래그 온
+            is_default_font = True
 
-        # [안전망 2] 구버전 파이썬/Pillow 호환성
         try:
             resample_filter = Image.Resampling.LANCZOS
         except AttributeError:
             resample_filter = Image.LANCZOS
+
+        anchor_val = None if is_default_font else "mm"
 
         # --- 1번 슬라이드 ---
         s1 = raw_img.copy().resize((width, height), resample_filter).filter(ImageFilter.GaussianBlur(radius=10))
         s1 = ImageEnhance.Brightness(s1).enhance(0.35) 
         draw = ImageDraw.Draw(s1)
         
-        # is_default_font가 True면 파이썬 기본 폰트의 한계(anchor 미지원)로 인한 크래시를 회피합니다.
-        anchor_val = None if is_default_font else "mm"
-        
+        # 단일 텍스트는 anchor 지원하므로 그대로 유지
         draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra" if not is_default_font else None)
         draw.text((width//2, 180), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor=anchor_val)
         
+        # [긴급 패치 1] 멀티라인 텍스트 박스 사이즈를 직접 스캔하여 중앙 정렬 계산 (에러 방지)
         wrapped_title = textwrap.fill(article['ko_title'], width=12)
-        draw.multiline_text((width//2, height//2 + 20), wrapped_title, fill=(255, 255, 255), font=title_font, anchor=anchor_val, align="center", spacing=25)
+        try:
+            bbox_t = draw.multiline_textbbox((0, 0), wrapped_title, font=title_font, spacing=25)
+            tw, th = bbox_t[2] - bbox_t[0], bbox_t[3] - bbox_t[1]
+        except AttributeError:
+            tw, th = draw.multiline_textsize(wrapped_title, font=title_font, spacing=25)
+            
+        draw.multiline_text(((width - tw)//2, (height//2 + 20) - (th//2)), wrapped_title, fill=(255, 255, 255), font=title_font, align="center", spacing=25)
         
         draw.text((width - 60, height - 60), f"Source: {article['source_name']}", fill=(255, 255, 255, 120), font=source_font, anchor="rd" if not is_default_font else None)
         s1.save(f"images/{prefix}_slide_0.png")
@@ -285,10 +289,15 @@ def create_slides(article, prefix):
             alpha = int(255 * ((y - start_y) / (height - start_y)))
             draw_overlay.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
         
+        # [긴급 패치 2] 텍스트 박스 사이즈 측정 후 '바닥에서 120px 띄워서' 배치
         wrapped_core = textwrap.fill(article['core_message'], width=24)
-        text_y = height - 120
-        # mb 앵커(바닥 고정)도 안전하게 제어
-        draw_overlay.multiline_text((width//2, text_y), wrapped_core, fill=(255, 255, 255, 250), font=core_font, anchor="mb" if not is_default_font else None, align="center", spacing=15)
+        try:
+            bbox_c = draw_overlay.multiline_textbbox((0, 0), wrapped_core, font=core_font, spacing=15)
+            cw, ch = bbox_c[2] - bbox_c[0], bbox_c[3] - bbox_c[1]
+        except AttributeError:
+            cw, ch = draw_overlay.multiline_textsize(wrapped_core, font=core_font, spacing=15)
+            
+        draw_overlay.multiline_text(((width - cw)//2, height - 120 - ch), wrapped_core, fill=(255, 255, 255, 250), font=core_font, align="center", spacing=15)
         
         s2 = Image.alpha_composite(s2.convert('RGBA'), overlay).convert('RGB')
         s2.save(f"images/{prefix}_slide_1.png")
@@ -306,7 +315,6 @@ def create_slides(article, prefix):
         print(f"✅ [{prefix.upper()}] 슬라이드 생성 완료!")
 
     except Exception as e:
-        # [에러 추적기] 만약 또 죽으면 죽은 이유를 정확히 로그에 찍어줍니다.
         print(f"\n❌ [치명적 오류] 이미지 렌더링 중 크래시 발생: {e}")
         traceback.print_exc()
         sys.exit(1)

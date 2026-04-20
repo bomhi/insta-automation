@@ -38,7 +38,7 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies
-        run: pip install Pillow requests deep-translator beautifulsoup4
+        run: pip install Pillow requests beautifulsoup4 google-generativeai
 
       # 1단계: 이미지 생성
       - name: Generate Content

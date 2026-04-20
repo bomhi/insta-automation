@@ -5,47 +5,27 @@ import sys
 import textwrap
 import re
 import shutil
-import random 
-import urllib.parse
+import json
 import traceback
+import google.generativeai as genai
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
-from deep_translator import GoogleTranslator
 from bs4 import BeautifulSoup
 
 # [설정]
 INSTA_ID = "@world_folio"
 
-JUNK_PHRASES = [
-    'Ben이 스토리를', '받은편지함', '가입', '동의하는', '약관', '개인 정보', 
-    'Insider', '뉴스레터', '클릭하면', 'Copyright', 'All rights reserved', '무료 기사',
-    '로봇이 아님을', '문의사항', '지원팀에 문의', '구독을 통해', '참조 ID', 'Bloomberg',
-    '계속하려면', 'JavaScript', '브라우저', '클릭하여',
-    '이 링크를 통해', '비용을 지불', '특정 활동에 대해', '수수료를 받', '수익을 창출',
-    '제휴 링크', '스폰서', '자세히 알아보기', '여기에서 확인', '광고입니다', '당사에',
-    'affiliate', 'commission', 'sponsor', 'subscribe', 'sign up', 'click here',
-    'read more', 'learn more', 'pays us', 'generated through this link',
-    'Yahoo Finance', '브로커-딜러', '투자 자문', '증권이나 암호화폐', '판매하거나', 
-    '거래를 촉진하지', '투자 권유가 아닙니다', '법적 조언', '재무 조언', '투자에 대한 책임',
-    '손실에 대해', 'broker-dealer', 'investment advisor', 'financial advice',
-    '작성자', '특파원', '기자='
-]
-SKIP_KEYWORDS = ['AP Photo', 'AP 사진', 'Photo/', 'Photograph', 'Caption', '©', '출처:', '연설하고', '손짓을', '재배포 금지']
-
-BIZ_HOOK_TAGS = ["GLOBAL ECONOMY HOT ISSUE", "비즈니스 필독 지식", "오늘의 마켓 하이라이트"]
-SCI_HOOK_TAGS = ["GLOBAL SCIENCE TECH", "인류를 바꿀 새로운 발견", "오늘의 테크/사이언스"]
-
-ENGAGEMENT_QUESTIONS = [
-    "여러분은 이 소식에 대해 어떻게 생각하시나요? 댓글로 자유롭게 의견을 남겨주세요!👇",
-    "이 이슈가 우리의 일상과 미래를 어떻게 바꿀까요? 여러분의 생각을 들려주세요!💬",
-    "유익하셨나요? 주변에 알리고 싶다면 저장과 공유를 잊지 마세요!🔖"
-]
+# Gemini API 세팅
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+else:
+    print("❌ GEMINI_API_KEY가 설정되지 않았습니다. GitHub Secrets를 확인해주세요.")
+    sys.exit(1)
 
 def is_valid_paragraph(text):
     text = text.strip()
     if len(text) < 40: return False
-    if any(junk in text for junk in JUNK_PHRASES): return False
-    if any(kw in text for kw in SKIP_KEYWORDS): return False
     return True
 
 def crawl_full_text(url):
@@ -59,133 +39,79 @@ def crawl_full_text(url):
     except:
         return None
 
-def smart_translate_title(text):
-    prompt = f"""
-    As an expert Instagram news editor, write a punchy, clickable Korean headline for this news. 
-    Rule 1: Length MUST be 15 to 25 characters. 
-    Rule 2: Capture the CORE EVENT. Do not just translate literally.
-    Rule 3: MUST end with a NOUN (e.g., 성취, 발표, 급락, 무산, 논란). NEVER end with verbs.
-    Example: "일론 머스크, 암 투병 소녀의 마지막 소원 성취"
-    Output ONLY the Korean text. Text: {text}
+# =====================================================================
+# 🧠 [초지능 코어] Gemini 1.5 Pro 수석 편집장 에이전트
+# =====================================================================
+def analyze_and_generate_content(raw_text, category):
     """
-    ko_title = ""
-    for _ in range(3):
-        try:
-            res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=12)
-            res.raise_for_status()
-            ko_text = re.sub(r'[*"\'\[\]]', '', res.text.strip())
-            if ko_text and len(ko_text) >= 5 and "Translate" not in ko_text and "Rule" not in ko_text:
-                ko_title = ko_text
-                break
-        except Exception:
-            time.sleep(1)
+    Gemini 1.5 Pro를 사용하여 기사의 노이즈를 걸러내고, 
+    최고의 카드뉴스용 헤드라인, 훅, 핵심 요약, 캡션을 한 번에 JSON 형태로 뽑아냅니다.
+    """
+    # 안전장치: 너무 긴 텍스트는 자름
+    safe_text = raw_text[:5000]
     
-    if not ko_title:
-        ko_title = GoogleTranslator(source='en', target='ko').translate(text)
-        ko_title = ko_title.replace("다이빙을 공유", "주가 급락").replace("공유가 다이빙", "주가 급락").replace("물러나면서", "사임")
-        ko_title = re.sub(r'(\S+면서|\S+따르면|\S+밝힌 가운데)\s', '', ko_title)
-        ko_title = re.sub(r'(했다|합니다|하다|했습니다|할 것|예정이다|된다|된다고|밝혔다|보인다|경고했다|주장했다|말했다|동결됐다|나타났다|전망이다)$', '', ko_title).strip()
-        ko_title = re.sub(r'[은는이가를을에의]$', '', ko_title).strip()
+    # 100만 팔로워 전문가 페르소나 및 자율권(Autonomy) 부여 프롬프트
+    system_instruction = f"""
+    당신은 100만 팔로워를 보유한 글로벌 프리미엄 뉴스 매거진의 '수석 편집장'이자 '카드뉴스 마케팅 최고 전문가'입니다.
+    현재 당신이 다루는 기사의 카테고리는 [{category.upper()}] 입니다.
+
+    [당신의 권한과 목표]
+    1. 당신은 제공된 거친 웹 텍스트(광고, 관련 기사 링크 등 노이즈 포함)에서 '단 하나의 가장 중요한 메인 스토리'만 완벽하게 발라낼 수 있는 권한과 능력이 있습니다.
+    2. 과거의 기계적인 3문단 규칙이나 하드코딩된 템플릿에 얽매일 필요 없습니다. 기사의 성격(긴급한 경제 위기, 감동적인 휴먼 스토리, 경이로운 과학 발견 등)을 스스로 판단하여, 가장 몰입감 있고 세련된 톤앤매너로 자유롭게 글을 구성하십시오.
+    3. 단, 프리미엄 매거진의 품격을 위해 무조건 정중하고 전문적인 한국어 존댓말('~습니다', '~합니다')을 사용하십시오. 신문체('~다', '~이다')는 절대 금지합니다.
+
+    [출력 형식: 반드시 아래 JSON 포맷만을 출력하십시오]
+    {{
+        "ko_title": "15~25자 사이의 압도적인 헤드라인 (반드시 명사형으로 끝낼 것. 예: 급락, 성취, 발견)",
+        "hook_tag": "10자 내외의 시선을 끄는 상단 태그 (예: GLOBAL ECONOMY, TECH INSIGHT, HUMAN STORY)",
+        "core_message": "카드뉴스 이미지 정중앙에 박힐 1~2문장의 가장 치명적이고 중요한 팩트 요약",
+        "summary_ko": "인스타그램 본문에 들어갈 완벽한 캡션. (도입부, 스토리텔링, 통찰력 있는 결론, 독자의 댓글을 유도하는 질문 포함. 적절한 이모지 사용)"
+    }}
+    """
+
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-pro",
+        system_instruction=system_instruction
+    )
+
+    try:
+        response = model.generate_content(
+            f"다음 웹 스크래핑 텍스트를 분석하여 완벽한 인스타그램 포스트용 JSON 데이터를 생성하십시오:\n\n{safe_text}",
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type="application/json",
+                temperature=0.4 # 창의성과 팩트의 균형
+            )
+        )
         
-        if len(ko_title) > 25:
-            words = ko_title.split()
-            safe_title = ""
-            for word in words:
-                if len(safe_title) + len(word) > 22: break
-                safe_title += word + " "
-            ko_title = safe_title.strip() + "..."
-    return ko_title
+        # JSON 파싱
+        result_json = json.loads(response.text)
+        return result_json
 
-def extract_and_summarize_article(text, category="biz"):
-    prompt = f"""
-    You are a Chief Editor for a premium Korean magazine. Summarize the MAIN story into an Instagram post.
-    
-    CRITICAL RULES:
-    1. Write EXACTLY 3 paragraphs separated by double newlines (\\n\\n).
-    2. TONE & MANNER: You MUST end EVERY sentence with polite/formal Korean ('~습니다.', '~합니다.', '~입니다.'). NEVER use informal endings like '~다.', '~이다.', '~었다.', '~남긴다.'.
-    3. Paragraph 1: Mood-setting intro. Paragraph 2: Core facts. Paragraph 3: Concluding insight.
-    4. For {category.upper()}, use professional terminology.
-    
-    Output ONLY the Korean text.
-    Text: {text}
-    """
-
-    for _ in range(3):
-        try:
-            res = requests.get(f"https://text.pollinations.ai/prompt/{urllib.parse.quote(prompt)}", timeout=15)
-            res.raise_for_status()
-            ko_text = res.text.strip()
-            if ko_text and len(ko_text) > 30 and "Translate" not in ko_text and "Rule" not in ko_text:
-                return ko_text
-        except Exception:
-            time.sleep(1)
-            
-    return GoogleTranslator(source='en', target='ko').translate(text[:800])
+    except Exception as e:
+        print(f"❌ Gemini API 통신 오류: {e}")
+        return None
 
 def process_single_article(article_data, category):
     full_text = crawl_full_text(article_data['url'])
     if not full_text or len(full_text) < 300: return None
 
-    full_text = re.sub(r'^(By\s[A-Za-z\s]+|Reuters|Bloomberg|AP)\s*[-:]\s*', '', full_text, flags=re.IGNORECASE)
-
-    en_title = article_data['title'].split(' - ')[0]
-    ko_title = smart_translate_title(en_title)
+    # Gemini 편집장에게 원문 전달 및 완벽한 결과물(JSON) 수령
+    print(f"⏳ Gemini 1.5 Pro가 [{category.upper()}] 기사를 심층 분석 및 집필 중입니다...")
+    ai_content = analyze_and_generate_content(full_text, category)
     
-    raw_ai_summary = extract_and_summarize_article(full_text[:3000], category)
-    
-    ko_full_text = raw_ai_summary.replace("했다.", "했습니다.").replace("한다.", "합니다.")\
-                                 .replace("된다.", "됩니다.").replace("이다.", "입니다.")\
-                                 .replace("밝혔다.", "밝혔습니다.").replace("말했다.", "말했습니다.")\
-                                 .replace("나타났다.", "나타났습니다.").replace("예정이다.", "예정입니다.")\
-                                 .replace("전망이다.", "전망입니다.").replace("보인다.", "보입니다.")\
-                                 .replace("않았다.", "않았습니다.").replace("없다.", "없습니다.")\
-                                 .replace("있다.", "있습니다.").replace("기록했다.", "기록했습니다.")\
-                                 .replace("주었다.", "주었습니다.").replace("남긴다.", "남깁니다.")\
-                                 .replace("연결되었다.", "연결되었습니다.").replace("것이다.", "것입니다.")\
-                                 .replace("나눈다.", "나눕니다.").replace("보여준다.", "보여줍니다.")
-
-    if category == "biz":
-        ko_full_text = ko_full_text.replace("수익 편지", "실적 발표 서한").replace("다이빙을 공유", "주가 급락")
-    elif category == "sci":
-        ko_full_text = ko_full_text.replace("제트기", "제트 분출류")
+    if not ai_content:
+        return None
 
     source_name = article_data['source']['name'] or "Global News"
-    
-    paragraphs = [p.strip() for p in ko_full_text.split('\n\n') if p.strip() and not any(j in p for j in JUNK_PHRASES)]
-    
-    if len(paragraphs) < 3:
-        sentences = [s.strip() for s in ko_full_text.split('. ') if len(s) > 15 and not any(j in s for j in JUNK_PHRASES)]
-        if len(sentences) < 2: return None
-        intro_text = sentences[0] + "." if not sentences[0].endswith('.') else sentences[0]
-        core_message = sentences[1] + "." if not sentences[1].endswith('.') else sentences[1]
-        conclusion_text = " ".join(sentences[2:])
-        if not conclusion_text: conclusion_text = "앞으로의 전개가 어떻게 이어질지 귀추가 주목됩니다."
-    else:
-        intro_text = paragraphs[0]
-        core_message = paragraphs[1] 
-        conclusion_text = paragraphs[2]
 
-    if not intro_text.endswith('.'): intro_text += '.'
-    if not core_message.endswith('.'): core_message += '.'
-    if not conclusion_text.endswith('.'): conclusion_text += '.'
-
-    if category == "biz":
-        hook_tag = random.choice(BIZ_HOOK_TAGS)
-    else:
-        hook_tag = random.choice(SCI_HOOK_TAGS)
-
-    engagement_text = random.choice(ENGAGEMENT_QUESTIONS)
-
-    summary = f"📢 [{ko_title}]\n\n"
-    summary += f"{intro_text}\n\n"
-    summary += f"{core_message}\n\n"
-    summary += f"{conclusion_text}\n\n"
-    summary += f"💡 Q. {engagement_text}"
+    # Gemini가 알아서 다 만들어준 완벽한 캡션 포장
+    summary = f"📢 [{ai_content['ko_title']}]\n\n"
+    summary += ai_content['summary_ko']
 
     return {
-        'ko_title': ko_title, 
-        'core_message': core_message, 
-        'hook_tag': hook_tag,        
+        'ko_title': ai_content['ko_title'], 
+        'core_message': ai_content['core_message'], 
+        'hook_tag': ai_content['hook_tag'],        
         'summary_ko': summary, 
         'image_url': article_data.get('urlToImage'), 
         'source_name': source_name
@@ -262,11 +188,9 @@ def create_slides(article, prefix):
         s1 = ImageEnhance.Brightness(s1).enhance(0.35) 
         draw = ImageDraw.Draw(s1)
         
-        # 단일 텍스트는 anchor 지원하므로 그대로 유지
         draw.text((width - 60, 60), INSTA_ID, fill=(255, 255, 255, 180), font=id_font, anchor="ra" if not is_default_font else None)
         draw.text((width//2, 180), article['hook_tag'], fill=(255, 225, 50), font=hook_font, anchor=anchor_val)
         
-        # [긴급 패치 1] 멀티라인 텍스트 박스 사이즈를 직접 스캔하여 중앙 정렬 계산 (에러 방지)
         wrapped_title = textwrap.fill(article['ko_title'], width=12)
         try:
             bbox_t = draw.multiline_textbbox((0, 0), wrapped_title, font=title_font, spacing=25)
@@ -289,7 +213,6 @@ def create_slides(article, prefix):
             alpha = int(255 * ((y - start_y) / (height - start_y)))
             draw_overlay.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
         
-        # [긴급 패치 2] 텍스트 박스 사이즈 측정 후 '바닥에서 120px 띄워서' 배치
         wrapped_core = textwrap.fill(article['core_message'], width=24)
         try:
             bbox_c = draw_overlay.multiline_textbbox((0, 0), wrapped_core, font=core_font, spacing=15)

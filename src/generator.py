@@ -14,7 +14,6 @@ from bs4 import BeautifulSoup
 # [설정]
 INSTA_ID = "@world_folio"
 
-# [수정] 라이브러리 의존성 제거, 순수 API 키만 가져옵니다.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     print("❌ GEMINI_API_KEY가 설정되지 않았습니다. GitHub Secrets를 확인해주세요.")
@@ -36,9 +35,6 @@ def crawl_full_text(url):
     except:
         return None
 
-# [초강력 업데이트: 구글 라이브러리를 쓰지 않는 REST API 직접 호출 방식]
-# [초강력 업데이트: 전 세계 100% 호환 범용 모델(gemini-pro) 다이렉트 통신]
-# [최종 무적 패치: 내 계정 권한에 맞는 최적의 AI 모델 자동 탐색 및 접속]
 def analyze_and_generate_content(raw_text, category):
     safe_text = raw_text[:5000]
     
@@ -64,68 +60,69 @@ def analyze_and_generate_content(raw_text, category):
     {safe_text}
     """
 
-    try:
-        # [혁신 로직 1단계] 내 API 키로 접근 가능한 구글 모델 리스트 스캔
-        models_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
-        model_req = requests.get(models_url, timeout=10)
-        model_req.raise_for_status()
-        
-        available_models = model_req.json().get('models', [])
-        target_model = None
-
-        # 사용 가능한 모델 중 텍스트 생성이 가능하며 가장 좋은 모델 자동 추적
-        for m in available_models:
-            name = m.get('name', '')
-            methods = m.get('supportedGenerationMethods', [])
-            if 'generateContent' in methods and 'gemini' in name:
-                if '1.5-flash' in name:  # 1순위: 가장 빠르고 안정적인 Flash
-                    target_model = name
-                    break
-                elif not target_model:   # 2순위: 사용 가능한 아무 Gemini 모델
-                    target_model = name
-
-        if not target_model:
-            target_model = "models/gemini-1.5-flash" # 만약 못 찾으면 최후의 기본값 설정
-
-        print(f"✅ [시스템] 구글 서버 스캔 완료. 사용 가능한 최적의 모델({target_model})로 접속합니다...")
-
-        # [혁신 로직 2단계] 스스로 찾아낸 모델 주소로 다이렉트 통신
-        url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={GEMINI_API_KEY}"
-        
-        headers = {'Content-Type': 'application/json'}
-        data = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.4
-            }
-        }
-
-        response = requests.post(url, headers=headers, json=data, timeout=30)
-        response.raise_for_status() 
-        
-        res_json = response.json()
-        ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
-        
-        # 클렌징 로직
-        clean_str = ai_text.strip()
-        if clean_str.startswith('```json'):
-            clean_str = clean_str[7:-3].strip()
-        elif clean_str.startswith('```'):
-            clean_str = clean_str[3:-3].strip()
+    # 재시도 로직에 스마트 딜레이 적용
+    for attempt in range(3):
+        try:
+            models_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+            model_req = requests.get(models_url, timeout=10)
+            model_req.raise_for_status()
             
-        return json.loads(clean_str)
+            available_models = model_req.json().get('models', [])
+            target_model = None
 
-    except Exception as e:
-        print(f"❌ Gemini 다이렉트 통신 오류: {e}")
-        if 'response' in locals() and hasattr(response, 'text'):
-            print(f"상세 에러 내역: {response.text}")
-        return None
+            for m in available_models:
+                name = m.get('name', '')
+                methods = m.get('supportedGenerationMethods', [])
+                if 'generateContent' in methods and 'gemini' in name:
+                    if 'flash' in name:  
+                        target_model = name
+                        break
+                    elif not target_model:   
+                        target_model = name
+
+            if not target_model:
+                target_model = "models/gemini-1.5-flash" 
+
+            if attempt == 0:
+                print(f"✅ [시스템] 구글 서버 스캔 완료. 최적 모델({target_model}) 접속 중...")
+
+            url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={GEMINI_API_KEY}"
+            
+            headers = {'Content-Type': 'application/json'}
+            data = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.4
+                }
+            }
+
+            response = requests.post(url, headers=headers, json=data, timeout=30)
+            response.raise_for_status() 
+            
+            res_json = response.json()
+            ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
+            
+            clean_str = ai_text.strip()
+            if clean_str.startswith('```json'):
+                clean_str = clean_str[7:-3].strip()
+            elif clean_str.startswith('```'):
+                clean_str = clean_str[3:-3].strip()
+                
+            return json.loads(clean_str)
+
+        except Exception as e:
+            wait_time = (attempt + 1) * 5 # 5초, 10초, 15초씩 대기시간 증가
+            print(f"⚠️ API 서버 과부하 또는 오류 발생 ({e}). {wait_time}초 후 재시도합니다... (시도: {attempt+1}/3)")
+            time.sleep(wait_time)
+            
+    print("❌ 최종 실패: Gemini API 통신을 완료하지 못했습니다.")
+    return None
 
 def process_single_article(article_data, category):
     full_text = crawl_full_text(article_data['url'])
     if not full_text or len(full_text) < 300: return None
 
-    print(f"⏳ Gemini 1.5 Flash가 [{category.upper()}] 기사를 심층 분석 및 집필 중입니다...")
+    print(f"⏳ Gemini 최신 엔진이 [{category.upper()}] 기사를 심층 분석 및 집필 중입니다...")
     ai_content = analyze_and_generate_content(full_text, category)
     
     if not ai_content: return None
@@ -157,7 +154,11 @@ def get_processed_news():
         for a in b_res.get('articles', []):
             if a.get('urlToImage') and a.get('url'):
                 biz_result = process_single_article(a, "biz")
-                if biz_result: break
+                if biz_result: 
+                    # [핵심 패치] BIZ 성공 후 SCI로 넘어가기 전 15초 쿨다운 타임!
+                    print("⏱️ 서버 과부하 방지를 위해 15초간 대기합니다...")
+                    time.sleep(15)
+                    break
                 
         s_res = requests.get(s_url).json()
         for a in s_res.get('articles', []):

@@ -36,8 +36,8 @@ def crawl_full_text(url):
     except:
         return None
 
+# [디버깅 패치: 에러 원인 상세 출력 및 가장 안정적인 최신 모델 다이렉트 꽂기]
 def analyze_and_generate_content(raw_text, category):
-    global _CACHED_MODEL
     safe_text = raw_text[:5000]
     
     prompt = f"""
@@ -64,26 +64,10 @@ def analyze_and_generate_content(raw_text, category):
 
     for attempt in range(3):
         try:
-            if not _CACHED_MODEL:
-                models_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
-                model_req = requests.get(models_url, timeout=10)
-                model_req.raise_for_status()
-                
-                available_models = model_req.json().get('models', [])
-                for m in available_models:
-                    name = m.get('name', '')
-                    methods = m.get('supportedGenerationMethods', [])
-                    # [핵심] flash 모델이면서 2.5나 exp(테스트용)가 아닌 안정화 버전만 선택!
-                    if 'generateContent' in methods and 'gemini' in name and 'flash' in name:
-                        if '2.5' not in name and 'exp' not in name:
-                            _CACHED_MODEL = name
-                            break
-                        
-                if not _CACHED_MODEL:
-                    _CACHED_MODEL = "models/gemini-1.5-flash"
-                print(f"✅ [시스템] 구글 서버 스캔 완료. 최적 모델({_CACHED_MODEL}) 세팅 완료!")
-
-            url = f"https://generativelanguage.googleapis.com/v1beta/{_CACHED_MODEL}:generateContent?key={GEMINI_API_KEY}"
+            # 구글이 공식 지원하는 가장 최신/안정화 통합 주소
+            target_model = "models/gemini-1.5-flash-latest"
+            url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={GEMINI_API_KEY}"
+            
             headers = {'Content-Type': 'application/json'}
             data = {
                 "contents": [{"parts": [{"text": prompt}]}],
@@ -93,10 +77,10 @@ def analyze_and_generate_content(raw_text, category):
             response = requests.post(url, headers=headers, json=data, timeout=30)
             
             if response.status_code == 429:
-                print("\n🚫 [치명적 오류] 구글 API 할당량이 여전히 0이거나 초과되었습니다 (429 에러).")
-                print("💡 구글 AI 스튜디오에서 발급받은 키가 '결제가 연동된 프로젝트' 소속인지 확인해 주세요.")
+                print("\n🚫 [치명적 오류] 구글 API 할당량이 여전히 0이거나 초과되었습니다 (429 에러).", flush=True)
                 sys.exit(1)
 
+            # 에러가 나면 여기서 멈추고 except 블록으로 넘어감
             response.raise_for_status() 
             
             res_json = response.json()
@@ -113,8 +97,15 @@ def analyze_and_generate_content(raw_text, category):
         except Exception as e:
             if isinstance(e, SystemExit):
                 raise e
+                
+            # [핵심] 구글이 뱉어낸 진짜 에러 메시지를 숨기지 않고 그대로 화면에 출력!
+            err_msg = str(e)
+            if 'response' in locals() and hasattr(response, 'text'):
+                err_msg += f" \n🔍 상세 내역: {response.text}"
+                
             wait_time = (attempt + 1) * 10
-            print(f"⚠️ API 통신 오류 발생. {wait_time}초 후 재시도합니다... (시도: {attempt+1}/3)")
+            print(f"⚠️ API 통신 오류 발생: {err_msg}", flush=True)
+            print(f"⏳ {wait_time}초 후 재시도합니다... (시도: {attempt+1}/3)", flush=True)
             time.sleep(wait_time)
             
     return None

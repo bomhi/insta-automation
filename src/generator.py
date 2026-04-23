@@ -64,7 +64,6 @@ def analyze_and_generate_content(raw_text, category):
 
     for attempt in range(3):
         try:
-            # 1. 모델 자동 스캔 (한 번 스캔하면 캐싱하여 다시 스캔 안 함)
             if not _CACHED_MODEL:
                 models_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
                 model_req = requests.get(models_url, timeout=10)
@@ -74,15 +73,16 @@ def analyze_and_generate_content(raw_text, category):
                 for m in available_models:
                     name = m.get('name', '')
                     methods = m.get('supportedGenerationMethods', [])
+                    # [핵심] flash 모델이면서 2.5나 exp(테스트용)가 아닌 안정화 버전만 선택!
                     if 'generateContent' in methods and 'gemini' in name and 'flash' in name:
-                        _CACHED_MODEL = name
-                        break
+                        if '2.5' not in name and 'exp' not in name:
+                            _CACHED_MODEL = name
+                            break
                         
                 if not _CACHED_MODEL:
                     _CACHED_MODEL = "models/gemini-1.5-flash"
                 print(f"✅ [시스템] 구글 서버 스캔 완료. 최적 모델({_CACHED_MODEL}) 세팅 완료!")
 
-            # 2. 다이렉트 통신
             url = f"https://generativelanguage.googleapis.com/v1beta/{_CACHED_MODEL}:generateContent?key={GEMINI_API_KEY}"
             headers = {'Content-Type': 'application/json'}
             data = {
@@ -92,10 +92,9 @@ def analyze_and_generate_content(raw_text, category):
 
             response = requests.post(url, headers=headers, json=data, timeout=30)
             
-            # [핵심 방어막] 429 에러 시 무한 루프 돌지 않고 파이썬 프로그램 전체 강제 종료
             if response.status_code == 429:
                 print("\n🚫 [치명적 오류] 구글 API 할당량이 여전히 0이거나 초과되었습니다 (429 에러).")
-                print("💡 구글 AI 스튜디오에서 '새로운 API 키'를 발급받아 깃허브에 다시 등록해 주세요.")
+                print("💡 구글 AI 스튜디오에서 발급받은 키가 '결제가 연동된 프로젝트' 소속인지 확인해 주세요.")
                 sys.exit(1)
 
             response.raise_for_status() 
@@ -112,7 +111,6 @@ def analyze_and_generate_content(raw_text, category):
             return json.loads(clean_str)
 
         except Exception as e:
-            # sys.exit(1)이 실행되었을 때는 그대로 종료시키도록 예외 처리
             if isinstance(e, SystemExit):
                 raise e
             wait_time = (attempt + 1) * 10

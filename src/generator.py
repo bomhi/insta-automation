@@ -37,7 +37,9 @@ def crawl_full_text(url):
         return None
 
 # [디버깅 패치: 에러 원인 상세 출력 및 가장 안정적인 최신 모델 다이렉트 꽂기]
+# [최종 추적 패치: 구글의 허가 모델 리스트 강제 스캔 및 자동 매칭]
 def analyze_and_generate_content(raw_text, category):
+    global _CACHED_MODEL
     safe_text = raw_text[:5000]
     
     prompt = f"""
@@ -64,9 +66,41 @@ def analyze_and_generate_content(raw_text, category):
 
     for attempt in range(3):
         try:
-            # 구글이 공식 지원하는 가장 최신/안정화 통합 주소
-            target_model = "models/gemini-1.5-flash-latest"
-            url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={GEMINI_API_KEY}"
+            # 1. 내 API 키로 접속 가능한 모든 모델 리스트 강제 수거
+            if not _CACHED_MODEL:
+                models_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+                model_req = requests.get(models_url, timeout=10)
+                model_req.raise_for_status()
+                
+                available_models = model_req.json().get('models', [])
+                valid_models = [m.get('name') for m in available_models if 'generateContent' in m.get('supportedGenerationMethods', [])]
+                
+                print(f"\n👀 [비밀 장부 확보] 내 키로 쓸 수 있는 구글 AI 목록: {valid_models}", flush=True)
+                
+                # 1순위: 가장 빠르고 안정적인 gemini-1.5-flash 계열 (단, 테스트용 exp 제외)
+                for name in valid_models:
+                    if 'gemini-1.5-flash' in name and 'exp' not in name:
+                        _CACHED_MODEL = name
+                        break
+                
+                # 2순위: flash가 없으면 그냥 1.5 버전 아무거나
+                if not _CACHED_MODEL:
+                    for name in valid_models:
+                        if 'gemini-1.5' in name:
+                            _CACHED_MODEL = name
+                            break
+                            
+                # 3순위: 그것도 없으면 리스트에 있는 첫 번째 제미나이 강제 할당
+                if not _CACHED_MODEL:
+                    for name in valid_models:
+                        if 'gemini' in name:
+                            _CACHED_MODEL = name
+                            break
+                            
+                print(f"🎯 [타겟 설정] 최종 선택된 AI 모델: {_CACHED_MODEL}", flush=True)
+
+            # 2. 선택된 모델로 다이렉트 통신
+            url = f"https://generativelanguage.googleapis.com/v1beta/{_CACHED_MODEL}:generateContent?key={GEMINI_API_KEY}"
             
             headers = {'Content-Type': 'application/json'}
             data = {
@@ -80,7 +114,6 @@ def analyze_and_generate_content(raw_text, category):
                 print("\n🚫 [치명적 오류] 구글 API 할당량이 여전히 0이거나 초과되었습니다 (429 에러).", flush=True)
                 sys.exit(1)
 
-            # 에러가 나면 여기서 멈추고 except 블록으로 넘어감
             response.raise_for_status() 
             
             res_json = response.json()
@@ -98,7 +131,6 @@ def analyze_and_generate_content(raw_text, category):
             if isinstance(e, SystemExit):
                 raise e
                 
-            # [핵심] 구글이 뱉어낸 진짜 에러 메시지를 숨기지 않고 그대로 화면에 출력!
             err_msg = str(e)
             if 'response' in locals() and hasattr(response, 'text'):
                 err_msg += f" \n🔍 상세 내역: {response.text}"
@@ -109,7 +141,6 @@ def analyze_and_generate_content(raw_text, category):
             time.sleep(wait_time)
             
     return None
-
 def process_single_article(article_data, category):
     full_text = crawl_full_text(article_data['url'])
     if not full_text or len(full_text) < 300: return None

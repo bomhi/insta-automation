@@ -10,6 +10,7 @@ import traceback
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from bs4 import BeautifulSoup
+_CACHED_MODEL = None
 
 # [설정]
 INSTA_ID = "@world_folio"
@@ -36,6 +37,7 @@ def crawl_full_text(url):
         return None
 
 def analyze_and_generate_content(raw_text, category):
+    global _CACHED_MODEL
     safe_text = raw_text[:5000]
     
     prompt = f"""
@@ -50,7 +52,7 @@ def analyze_and_generate_content(raw_text, category):
 
     [출력 형식: 반드시 아래 JSON 포맷만을 출력하십시오. 다른 부가 설명은 절대 금지합니다.]
     {{
-        "ko_title": "15~25자 사이의 압도적인 헤드라인 (반드시 명사형으로 끝낼 것. 예: 급락, 성취, 발견)",
+        "ko_title": "15~25자 사이의 압도적인 헤드라인 (반드시 명사형으로 끝낼 것)",
         "hook_tag": "10자 내외의 시선을 끄는 상단 태그",
         "core_message": "카드뉴스 이미지 정중앙에 박힐 1~2문장의 가장 치명적이고 중요한 팩트 요약",
         "summary_ko": "인스타그램 본문에 들어갈 완벽한 캡션. (도입부, 스토리텔링, 통찰, 질문 포함. 적절한 이모지 사용)"
@@ -60,43 +62,42 @@ def analyze_and_generate_content(raw_text, category):
     {safe_text}
     """
 
-    # 재시도 로직에 스마트 딜레이 적용
     for attempt in range(3):
         try:
-            models_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
-            model_req = requests.get(models_url, timeout=10)
-            model_req.raise_for_status()
-            
-            available_models = model_req.json().get('models', [])
-            target_model = None
-
-            for m in available_models:
-                name = m.get('name', '')
-                methods = m.get('supportedGenerationMethods', [])
-                if 'generateContent' in methods and 'gemini' in name:
-                    if 'flash' in name:  
-                        target_model = name
+            # 1. 모델 자동 스캔 (한 번 스캔하면 캐싱하여 다시 스캔 안 함)
+            if not _CACHED_MODEL:
+                models_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+                model_req = requests.get(models_url, timeout=10)
+                model_req.raise_for_status()
+                
+                available_models = model_req.json().get('models', [])
+                for m in available_models:
+                    name = m.get('name', '')
+                    methods = m.get('supportedGenerationMethods', [])
+                    if 'generateContent' in methods and 'gemini' in name and 'flash' in name:
+                        _CACHED_MODEL = name
                         break
-                    elif not target_model:   
-                        target_model = name
+                        
+                if not _CACHED_MODEL:
+                    _CACHED_MODEL = "models/gemini-1.5-flash"
+                print(f"✅ [시스템] 구글 서버 스캔 완료. 최적 모델({_CACHED_MODEL}) 세팅 완료!")
 
-            if not target_model:
-                target_model = "models/gemini-1.5-flash" 
-
-            if attempt == 0:
-                print(f"✅ [시스템] 구글 서버 스캔 완료. 최적 모델({target_model}) 접속 중...")
-
-            url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={GEMINI_API_KEY}"
-            
+            # 2. 다이렉트 통신
+            url = f"https://generativelanguage.googleapis.com/v1beta/{_CACHED_MODEL}:generateContent?key={GEMINI_API_KEY}"
             headers = {'Content-Type': 'application/json'}
             data = {
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.4
-                }
+                "generationConfig": {"temperature": 0.4}
             }
 
             response = requests.post(url, headers=headers, json=data, timeout=30)
+            
+            # [핵심 방어막] 429 에러 시 무한 루프 돌지 않고 파이썬 프로그램 전체 강제 종료
+            if response.status_code == 429:
+                print("\n🚫 [치명적 오류] 구글 API 할당량이 여전히 0이거나 초과되었습니다 (429 에러).")
+                print("💡 구글 AI 스튜디오에서 '새로운 API 키'를 발급받아 깃허브에 다시 등록해 주세요.")
+                sys.exit(1)
+
             response.raise_for_status() 
             
             res_json = response.json()
@@ -111,11 +112,13 @@ def analyze_and_generate_content(raw_text, category):
             return json.loads(clean_str)
 
         except Exception as e:
-            wait_time = (attempt + 1) * 5 # 5초, 10초, 15초씩 대기시간 증가
-            print(f"⚠️ API 서버 과부하 또는 오류 발생 ({e}). {wait_time}초 후 재시도합니다... (시도: {attempt+1}/3)")
+            # sys.exit(1)이 실행되었을 때는 그대로 종료시키도록 예외 처리
+            if isinstance(e, SystemExit):
+                raise e
+            wait_time = (attempt + 1) * 10
+            print(f"⚠️ API 통신 오류 발생. {wait_time}초 후 재시도합니다... (시도: {attempt+1}/3)")
             time.sleep(wait_time)
             
-    print("❌ 최종 실패: Gemini API 통신을 완료하지 못했습니다.")
     return None
 
 def process_single_article(article_data, category):

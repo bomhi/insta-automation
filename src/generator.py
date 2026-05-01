@@ -142,13 +142,27 @@ def analyze_and_generate_content(raw_text, category):
             
     return None
 def process_single_article(article_data, category):
+    title = article_data.get('title', '제목 없음')
+    print(f"  👉 [분석 시도] {title[:40]}...", flush=True)
+    
     full_text = crawl_full_text(article_data['url'])
-    if not full_text or len(full_text) < 300: return None
+    
+    # [긴급 방어망] 웹사이트가 보안으로 크롤링을 막아서 본문이 텅 비었을 경우
+    if not full_text or len(full_text) < 200:
+        print("     ⚠️ 본문 크롤링 차단됨. 기사 요약본(Description)으로 비상 대체합니다.", flush=True)
+        fallback = str(article_data.get('description', '')) + " " + str(article_data.get('content', ''))
+        full_text = fallback
+        
+    if not full_text or len(full_text) < 50:
+        print("     ❌ [스킵] 기사 내용이 너무 짧아 AI가 읽을 수 없습니다.", flush=True)
+        return None
 
-    print(f"⏳ Gemini 최신 엔진이 [{category.upper()}] 기사를 심층 분석 및 집필 중입니다...")
+    print(f"     ⏳ Gemini 최신 엔진 집필 중...", flush=True)
     ai_content = analyze_and_generate_content(full_text, category)
     
-    if not ai_content: return None
+    if not ai_content: 
+        print("     ❌ [스킵] AI 요약 실패 (에러 또는 거절)", flush=True)
+        return None
 
     source_name = article_data['source']['name'] or "Global News"
     summary = f"📢 [{ai_content['ko_title']}]\n\n{ai_content['summary_ko']}"
@@ -177,18 +191,43 @@ def get_processed_news():
     sci_result = None
     
     try:
-        # 1. 경제 뉴스 수집
         b_res = requests.get(b_url, timeout=15).json()
-        if b_res.get('status') != 'ok':
-            print(f"❌ [뉴스 API 거절 - BIZ] 사유: {b_res}", flush=True)
-        else:
-            for a in b_res.get('articles', []):
-                if a.get('urlToImage') and a.get('url'):
-                    biz_result = process_single_article(a, "biz")
-                    if biz_result: 
-                        print("⏱️ 서버 과부하 방지를 위해 15초간 대기합니다...", flush=True)
-                        time.sleep(15)
-                        break
+        b_articles = b_res.get('articles', [])
+        print(f"\n📊 [BIZ] 경제 뉴스 {len(b_articles)}개 후보 발견", flush=True)
+        
+        for i, a in enumerate(b_articles):
+            if not a.get('urlToImage'):
+                print(f"  [{i+1}/10] ❌ [스킵] 썸네일 이미지 없음", flush=True)
+                continue
+            if not a.get('url'):
+                continue
+            
+            biz_result = process_single_article(a, "biz")
+            if biz_result: 
+                print("✅ [BIZ] 경제 뉴스 채택 완료! (서버 과부하 방지 15초 쿨다운)", flush=True)
+                time.sleep(15)
+                break
+                
+        s_res = requests.get(s_url, timeout=15).json()
+        s_articles = s_res.get('articles', [])
+        print(f"\n📊 [SCI] 과학 뉴스 {len(s_articles)}개 후보 발견", flush=True)
+        
+        for i, a in enumerate(s_articles):
+            if not a.get('urlToImage'):
+                print(f"  [{i+1}/10] ❌ [스킵] 썸네일 이미지 없음", flush=True)
+                continue
+            if not a.get('url'):
+                continue
+            
+            sci_result = process_single_article(a, "sci")
+            if sci_result: 
+                print("✅ [SCI] 과학 뉴스 채택 완료!", flush=True)
+                break
+                
+    except Exception as e:
+        print(f"❌ 뉴스 리스트 가져오기 실패: {e}", flush=True)
+
+    return biz_result, sci_result
                         
         # 2. 과학 뉴스 수집
         s_res = requests.get(s_url, timeout=15).json()

@@ -163,9 +163,13 @@ def process_single_article(article_data, category):
     }
 
 def get_processed_news():
-    print("\n🔍 [1단계: 투트랙(경제/과학) 뉴스 동시 수집 중...]")
+    print("\n🔍 [1단계: 투트랙(경제/과학) 뉴스 동시 수집 중...]", flush=True)
     api_key = os.getenv('NEWS_API_KEY')
     
+    if not api_key:
+        print("❌ [오류] NEWS_API_KEY가 없습니다. 깃허브 시크릿을 확인하세요.", flush=True)
+        return None, None
+
     b_url = f"https://newsapi.org/v2/top-headlines?country=us&category=business&pageSize=10&apiKey={api_key}"
     s_url = f"https://newsapi.org/v2/top-headlines?country=us&category=science&pageSize=10&apiKey={api_key}"
     
@@ -173,23 +177,31 @@ def get_processed_news():
     sci_result = None
     
     try:
-        b_res = requests.get(b_url).json()
-        for a in b_res.get('articles', []):
-            if a.get('urlToImage') and a.get('url'):
-                biz_result = process_single_article(a, "biz")
-                if biz_result: 
-                    # [핵심 패치] BIZ 성공 후 SCI로 넘어가기 전 15초 쿨다운 타임!
-                    print("⏱️ 서버 과부하 방지를 위해 15초간 대기합니다...")
-                    time.sleep(15)
-                    break
-                
-        s_res = requests.get(s_url).json()
-        for a in s_res.get('articles', []):
-            if a.get('urlToImage') and a.get('url'):
-                sci_result = process_single_article(a, "sci")
-                if sci_result: break
+        # 1. 경제 뉴스 수집
+        b_res = requests.get(b_url, timeout=15).json()
+        if b_res.get('status') != 'ok':
+            print(f"❌ [뉴스 API 거절 - BIZ] 사유: {b_res}", flush=True)
+        else:
+            for a in b_res.get('articles', []):
+                if a.get('urlToImage') and a.get('url'):
+                    biz_result = process_single_article(a, "biz")
+                    if biz_result: 
+                        print("⏱️ 서버 과부하 방지를 위해 15초간 대기합니다...", flush=True)
+                        time.sleep(15)
+                        break
+                        
+        # 2. 과학 뉴스 수집
+        s_res = requests.get(s_url, timeout=15).json()
+        if s_res.get('status') != 'ok':
+            print(f"❌ [뉴스 API 거절 - SCI] 사유: {s_res}", flush=True)
+        else:
+            for a in s_res.get('articles', []):
+                if a.get('urlToImage') and a.get('url'):
+                    sci_result = process_single_article(a, "sci")
+                    if sci_result: break
+                    
     except Exception as e:
-        print(f"❌ 뉴스 리스트 가져오기 실패: {e}")
+        print(f"❌ 뉴스 리스트 가져오기 실패 (타임아웃 등): {e}", flush=True)
 
     return biz_result, sci_result
 

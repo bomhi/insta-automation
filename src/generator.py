@@ -208,6 +208,7 @@ def get_processed_news():
                 time.sleep(15)
                 break
                 
+        # 들여쓰기 완벽 정렬 라인
         s_res = requests.get(s_url, timeout=15).json()
         s_articles = s_res.get('articles', [])
         print(f"\n📊 [SCI] 과학 뉴스 {len(s_articles)}개 후보 발견", flush=True)
@@ -226,21 +227,6 @@ def get_processed_news():
                 
     except Exception as e:
         print(f"❌ 뉴스 리스트 가져오기 실패: {e}", flush=True)
-
-    return biz_result, sci_result
-                        
-        # 2. 과학 뉴스 수집
-        s_res = requests.get(s_url, timeout=15).json()
-        if s_res.get('status') != 'ok':
-            print(f"❌ [뉴스 API 거절 - SCI] 사유: {s_res}", flush=True)
-        else:
-            for a in s_res.get('articles', []):
-                if a.get('urlToImage') and a.get('url'):
-                    sci_result = process_single_article(a, "sci")
-                    if sci_result: break
-                    
-    except Exception as e:
-        print(f"❌ 뉴스 리스트 가져오기 실패 (타임아웃 등): {e}", flush=True)
 
     return biz_result, sci_result
 
